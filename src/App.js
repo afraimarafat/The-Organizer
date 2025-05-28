@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import './App.css'; // This line is now uncommented
 
 /**
- * Helper function to format a Date object into a Pasadena-MM-DD string in the AEST timezone.
+ * Helper function to format a Date object into a YYYY-MM-DD string in the AEST timezone.
  * This ensures consistency for date comparisons and display.
  * @param {Date} date - The Date object to format.
  * @returns {string} The formatted date string (e.g., "2025-05-28") or an empty string if invalid.
@@ -38,7 +38,7 @@ const toAESTDateStr = (date) => {
 const EditTaskModal = ({ isOpen, onClose, task, onSave }) => {
     // State for task properties being edited
     const [editText, setEditText] = useState(task?.text || '');
-    const [editDate, setEditDate] = useState(task?.date?.slice(0, 10) || ''); // Pasadena-MM-DD part
+    const [editDate, setEditDate] = useState(task?.date?.slice(0, 10) || ''); // YYYY-MM-DD part
     const [editTime, setEditTime] = useState(task?.date?.length > 10 ? task.date.slice(11, 16) : ''); // HH:MM part
     const [editFrequency, setEditFrequency] = useState(task?.frequency || 'once');
     const [editEndDate, setEditEndDate] = useState(task?.endDate || ''); // End date for recurring tasks
@@ -279,6 +279,11 @@ const AuthPage = ({ onAuthSuccess }) => {
     const [confirmPassword, setConfirmPassword] = useState(''); // For sign-up
     const [error, setError] = useState(''); // To display authentication errors
 
+    // Hardcoded credentials for client-side simulation
+    // In a real application, these would be stored securely on a backend and validated server-side.
+    const VALID_EMAIL = 'user@example.com';
+    const VALID_PASSWORD = 'password123';
+
     /**
      * Handles the authentication (sign-in or sign-up) attempt.
      * This is a client-side simulation. In a real app, it would involve API calls.
@@ -289,36 +294,26 @@ const AuthPage = ({ onAuthSuccess }) => {
         setError(''); // Clear previous errors
 
         if (isSignIn) {
-            // Simulate sign-in
-            if (email.trim() && password.trim()) {
-                // In a real application, you'd send these credentials to your backend
-                // const response = await fetch('/api/signin', { ... });
-                // const data = await response.json();
-                // if (response.ok) { onAuthSuccess(data); } else { setError(data.message); }
-
-                // For simulation:
+            // Simulate sign-in: Check against hardcoded credentials
+            if (email.trim() === VALID_EMAIL && password.trim() === VALID_PASSWORD) {
                 console.log('Simulating sign-in for:', email);
                 onAuthSuccess({ userId: email, token: 'dummy_token_123' }); // Pass a dummy user object
             } else {
-                setError("Please enter email and password.");
+                setError("Invalid email or password."); // Specific error for incorrect credentials
             }
         } else {
-            // Simulate sign-up
+            // Simulate sign-up: Basic validation, but no persistent storage
             if (password !== confirmPassword) {
                 setError("Passwords do not match.");
                 return;
             }
             if (email.trim() && password.trim() && confirmPassword.trim()) {
-                // In a real application, you'd send these credentials to your backend
-                // const response = await fetch('/api/signup', { ... });
-                // const data = await response.json();
-                // if (response.ok) { onAuthSuccess(data); } else { setError(data.message); }
-
-                // For simulation:
                 console.log('Simulating sign-up for:', email);
+                // In a real application, you'd send these credentials to your backend for registration
+                // For this simulation, we just "succeed" and log the new user
                 onAuthSuccess({ userId: email, token: 'dummy_token_456' }); // Pass a dummy user object
             } else {
-                setError("Please fill all sign-up fields.");
+                setError("Please fill all sign-up fields."); // Error for incomplete sign-up form
             }
         }
     };
@@ -819,9 +814,8 @@ export default function TodoApp() {
                 </div>
             ) : ( // Render main application if a user is authenticated (or after loading screen if no auth)
                 <div className="app-container">
-                    {/* Top bar for user info and logout button */}
+                    {/* Top bar for logout button - now fixed position */}
                     <div className="top-bar">
-                        {/* Removed "Logged in as: {user.userId}" text as per request */}
                         <button className="logout-button" onClick={handleLogout}>Logout</button>
                     </div>
 
@@ -1056,8 +1050,8 @@ export default function TodoApp() {
                                             {task.frequency && ` (${task.frequency})`}
                                             {task.endDate && ` (Ends: ${new Date(task.endDate).toLocaleDateString()})`}
                                             <div className="task-actions">
-                                                <button onClick={() => openEditModal(index)}>Edit</button>
-                                                <button onClick={() => removeTask(index)}>Delete</button>
+                                                <button onClick={() => openEditModal(task.index)}>Edit</button>
+                                                <button onClick={() => removeTask(task.index)}>Delete</button>
                                             </div>
                                         </div>
                                     ))}
