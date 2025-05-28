@@ -1,296 +1,51 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import { initializeApp } from 'firebase/app';
-import {
-    getAuth,
-    signInAnonymously,
-    signInWithCustomToken,
-    onAuthStateChanged,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut,
-} from 'firebase/auth';
-import {
-    getFirestore,
-    doc,
-    setDoc,
-    getDoc,
-    onSnapshot,
-    collection,
-    query,
-    where,
-    addDoc,
-    getDocs,
-    deleteDoc,
-    updateDoc,
-} from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import './App.css'; // This line is now uncommented
 
-import './App.css'; // Don't forget to import your CSS!
-
-// --- Firebase Configuration and Context ---
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-const AuthContext = createContext(null);
-
-const AuthProvider = ({ children }) => {
-    const [currentUser, setCurrentUser] = useState(null);
-    const [loadingAuth, setLoadingAuth] = useState(true);
-    const [authError, setAuthError] = useState(null);
-
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                setCurrentUser(user);
-            } else {
-                setCurrentUser(null);
-            }
-            setLoadingAuth(false);
-        });
-
-        // Attempt to sign in with custom token if available, or anonymously
-        const initialSignIn = async () => {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                    console.log("Signed in with custom token.");
-                } else {
-                    await signInAnonymously(auth);
-                    console.log("Signed in anonymously.");
-                }
-            } catch (error) {
-                console.error("Firebase initial sign-in error:", error);
-                setAuthError(error.message);
-                setLoadingAuth(false); // Ensure loading is false even on error
-            }
-        };
-
-        initialSignIn();
-
-        return () => unsubscribe(); // Cleanup auth listener
-    }, []);
-
-    const signUp = async (email, password) => {
-        setAuthError(null);
-        try {
-            await createUserWithEmailAndPassword(auth, email, password);
-            return true;
-        } catch (error) {
-            console.error("Error signing up:", error);
-            setAuthError(error.message);
-            return false;
-        }
-    };
-
-    const signIn = async (email, password) => {
-        setAuthError(null);
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-            return true;
-        } catch (error) {
-            console.error("Error signing in:", error);
-            setAuthError(error.message);
-            return false;
-        }
-    };
-
-    const signOutUser = async () => {
-        setAuthError(null);
-        try {
-            await signOut(auth);
-            // Optionally, clear local data here if not handled by onSnapshot
-        } catch (error) {
-            console.error("Error signing out:", error);
-            setAuthError(error.message);
-        }
-    };
-
-    return (
-        <AuthContext.Provider value={{ currentUser, loadingAuth, authError, signUp, signIn, signOutUser }}>
-            {children}
-        </AuthContext.Provider>
-    );
-};
-
-// --- LLM API Call Utility ---
-const callGeminiApi = async (prompt, responseSchema = null) => {
-    let chatHistory = [];
-    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-
-    const payload = { contents: chatHistory };
-    if (responseSchema) {
-        payload.generationConfig = {
-            responseMimeType: "application/json",
-            responseSchema: responseSchema
-        };
-    }
-
-    const apiKey = ""; // Canvas will automatically provide this in runtime
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-
+/**
+ * Helper function to format a Date object into a YYYY-MM-DD string in the AEST timezone.
+ * This ensures consistency for date comparisons and display.
+ * @param {Date} date - The Date object to format.
+ * @returns {string} The formatted date string (e.g., "2025-05-28") or an empty string if invalid.
+ */
+const toAESTDateStr = (date) => {
+    if (!date) return '';
     try {
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Gemini API error response:", errorData);
-            throw new Error(`Gemini API request failed: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
-        }
-
-        const result = await response.json();
-        if (result.candidates && result.candidates.length > 0 &&
-            result.candidates[0].content && result.candidates[0].content.parts &&
-            result.candidates[0].content.parts.length > 0) {
-            const text = result.candidates[0].content.parts[0].text;
-            if (responseSchema) {
-                try {
-                    return JSON.parse(text);
-                } catch (jsonError) {
-                    console.error("Failed to parse JSON from Gemini API:", text, jsonError);
-                    throw new Error("Failed to parse structured response from AI.");
-                }
-            }
-            return text;
-        } else {
-            console.warn("Gemini API response structure unexpected:", result);
-            throw new Error("No content received from AI.");
-        }
+        // Use 'en-AU' locale and 'Australia/Sydney' timezone for AEST
+        return date
+            .toLocaleDateString('en-AU', {
+                timeZone: 'Australia/Sydney',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            })
+            .split('/') // Splits "DD/MM/YYYY"
+            .reverse() // Reverses to "YYYY", "MM", "DD"
+            .join('-'); // Joins to "YYYY-MM-DD"
     } catch (error) {
-        console.error("Error calling Gemini API:", error);
-        throw error;
+        console.error("Error formatting date to AEST string:", error);
+        return '';
     }
 };
 
-// --- Reusable LLM Response Modal ---
-const LLMResponseModal = ({ isOpen, onClose, title, content, onAddAsTasks = null }) => {
-    if (!isOpen) return null;
-
-    return (
-        <div className="modal-overlay">
-            <div className="modal-content">
-                <h3>{title}</h3>
-                <div className="llm-response-content">
-                    {Array.isArray(content) ? (
-                        <ul className="llm-list">
-                            {content.map((item, index) => (
-                                <li key={index}>{item}</li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <p className="llm-text">{content}</p>
-                    )}
-                </div>
-                <div className="modal-buttons">
-                    {onAddAsTasks && Array.isArray(content) && content.length > 0 && (
-                        <button
-                            onClick={() => onAddAsTasks(content)}
-                            className="llm-add-tasks-button"
-                        >
-                            Add All as New Tasks
-                        </button>
-                    )}
-                    <button
-                        onClick={onClose}
-                        className="llm-close-button"
-                    >
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-// --- Sign In / Sign Up Component ---
-const AuthScreen = () => {
-    const { signUp, signIn, authError } = useContext(AuthContext);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [isLogin, setIsLogin] = useState(true); // true for login, false for signup
-    const [message, setMessage] = useState('');
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setMessage('');
-        let success;
-        if (isLogin) {
-            success = await signIn(email, password);
-            if (success) {
-                setMessage('Signed in successfully!');
-            } else {
-                setMessage('Sign-in failed. Please check your credentials.');
-            }
-        } else {
-            success = await signUp(email, password);
-            if (success) {
-                setMessage('Account created! Please sign in.');
-                setIsLogin(true); // Switch to login after successful signup
-            } else {
-                setMessage('Sign-up failed. User might already exist or password is too weak.');
-            }
-        }
-    };
-
-    return (
-        <div className="auth-container">
-            <div className="auth-card">
-                <h2>{isLogin ? 'Sign In' : 'Sign Up'}</h2>
-                <form onSubmit={handleSubmit} className="auth-form">
-                    <div className="form-group">
-                        <label htmlFor="email">Email</label>
-                        <input
-                            type="email"
-                            id="email"
-                            placeholder="your@example.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                        />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="password">Password</label>
-                        <input
-                            type="password"
-                            id="password"
-                            placeholder="********"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                        />
-                    </div>
-                    {authError && <p className="auth-error">{authError}</p>}
-                    {message && <p className="auth-message">{message}</p>}
-                    <button type="submit" className="auth-submit-button">
-                        {isLogin ? 'Sign In' : 'Sign Up'}
-                    </button>
-                </form>
-                <div className="auth-switch">
-                    <button onClick={() => setIsLogin(!isLogin)} className="auth-switch-button">
-                        {isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- EditTaskModal Component ---
-const EditTaskModal = ({ isOpen, onClose, task, onSave, onSuggestSubtasks }) => {
+/**
+ * EditTaskModal Component
+ * A modal for editing existing tasks, including task name, date, time, frequency, and end date.
+ * @param {boolean} isOpen - Controls the visibility of the modal.
+ * @param {function} onClose - Callback function to close the modal.
+ * @param {object} task - The task object to be edited.
+ * @param {function} onSave - Callback function to save the edited task.
+ */
+const EditTaskModal = ({ isOpen, onClose, task, onSave }) => {
+    // State for task properties being edited
     const [editText, setEditText] = useState(task?.text || '');
-    const [editDate, setEditDate] = useState(task?.date?.slice(0, 10) || '');
-    const [editTime, setEditTime] = useState(task?.date?.length > 10 ? task.date.slice(11, 16) : '');
+    const [editDate, setEditDate] = useState(task?.date?.slice(0, 10) || ''); // YYYY-MM-DD part
+    const [editTime, setEditTime] = useState(task?.date?.length > 10 ? task.date.slice(11, 16) : ''); // HH:MM part
     const [editFrequency, setEditFrequency] = useState(task?.frequency || 'once');
-    const [editEndDate, setEditEndDate] = useState(task?.endDate || '');
+    const [editEndDate, setEditEndDate] = useState(task?.endDate || ''); // End date for recurring tasks
+    // Controls visibility of the end date picker input
     const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
+    // Effect to update modal state when a new task is passed for editing
     useEffect(() => {
         if (task) {
             setEditText(task.text);
@@ -298,27 +53,34 @@ const EditTaskModal = ({ isOpen, onClose, task, onSave, onSuggestSubtasks }) => 
             setEditTime(task.date?.length > 10 ? task.date.slice(11, 16) : '');
             setEditFrequency(task.frequency || 'once');
             setEditEndDate(task.endDate || '');
+            // Show end date picker if it's a recurring task and an end date is already set
             setShowEndDatePicker(['daily', 'weekly', 'monthly', 'yearly'].includes(task.frequency) && !!task.endDate);
         }
     }, [task]);
 
+    /**
+     * Handles saving the edited task.
+     * Validates input and calls the onSave callback with the updated task object.
+     */
     const handleSave = () => {
-        if (editText.trim() && editDate) {
+        if (editText.trim() && editDate) { // Ensure task text and date are not empty
             const newFullDate = editTime ? `${editDate}T${editTime}` : editDate;
             onSave({
-                ...task,
+                ...task, // Keep existing task properties (like ID)
                 text: editText.trim(),
                 date: newFullDate,
                 frequency: editFrequency,
+                // Only save endDate if the task is recurring, otherwise clear it
                 endDate: editFrequency !== 'once' ? editEndDate : '',
             });
-            onClose();
+            onClose(); // Close the modal after saving
         }
     };
 
+    // Determine if the current frequency is for a recurring task
     const isRecurring = ['daily', 'weekly', 'monthly', 'yearly'].includes(editFrequency);
 
-    if (!isOpen) return null;
+    if (!isOpen) return null; // Don't render if modal is not open
 
     return (
         <div className="modal-overlay">
@@ -331,18 +93,17 @@ const EditTaskModal = ({ isOpen, onClose, task, onSave, onSuggestSubtasks }) => 
                 <label>Time (HH:MM):</label>
                 <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} />
                 <label>Frequency:</label>
-                <select
-                    value={editFrequency}
-                    onChange={(e) => {
-                        setEditFrequency(e.target.value);
-                        if (e.target.value === 'once') {
-                            setEditEndDate('');
-                            setShowEndDatePicker(false);
-                        } else {
-                            setShowEndDatePicker(false);
-                        }
-                    }}
-                >
+                <select value={editFrequency} onChange={(e) => {
+                    setEditFrequency(e.target.value);
+                    // Reset end date and hide picker if frequency changes to 'once'
+                    if (e.target.value === 'once') {
+                        setEditEndDate('');
+                        setShowEndDatePicker(false);
+                    } else {
+                        // When switching to recurring, initially hide picker to allow "Set End Date" button to show
+                        setShowEndDatePicker(false);
+                    }
+                }}>
                     <option value="once">Once</option>
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
@@ -350,42 +111,34 @@ const EditTaskModal = ({ isOpen, onClose, task, onSave, onSuggestSubtasks }) => 
                     <option value="yearly">Yearly</option>
                 </select>
 
+                {/* Render end date section only if the task is recurring */}
                 {isRecurring && (
                     <div className="end-date-section">
                         <label>Ends:</label>
-                        {showEndDatePicker ? (
+                        {showEndDatePicker ? ( // If end date picker should be shown
                             <>
                                 <input
                                     type="date"
                                     value={editEndDate}
                                     onChange={(e) => setEditEndDate(e.target.value)}
                                 />
+                                {/* Show "Clear End Date" button only if an end date is set */}
                                 {editEndDate && (
-                                    <button
-                                        onClick={() => {
-                                            setEditEndDate('');
-                                            setShowEndDatePicker(false);
-                                        }}
-                                    >
-                                        Clear End Date
-                                    </button>
+                                    <button onClick={() => {
+                                        setEditEndDate('');
+                                        setShowEndDatePicker(false); // Hide picker, show "Set End Date" button
+                                    }}>Clear End Date</button>
                                 )}
                             </>
-                        ) : (
+                        ) : ( // Otherwise, show "Set End Date" button
                             <button onClick={() => setShowEndDatePicker(true)}>Set End Date</button>
                         )}
+                        {/* Display the selected end date if it exists */}
                         {editEndDate && <p>Ends on: {new Date(editEndDate).toLocaleDateString()}</p>}
                     </div>
                 )}
 
                 <div className="modal-buttons">
-                    <button
-                        onClick={() => onSuggestSubtasks(editText)}
-                        disabled={!editText.trim()}
-                        className="suggest-subtasks-button"
-                    >
-                        ✨ Suggest Sub-tasks
-                    </button>
                     <button onClick={handleSave}>Save</button>
                     <button onClick={onClose}>Cancel</button>
                 </div>
@@ -394,75 +147,84 @@ const EditTaskModal = ({ isOpen, onClose, task, onSave, onSuggestSubtasks }) => 
     );
 };
 
-// --- Notes Component ---
-const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
-    const [openNoteIds, setOpenNoteIds] = useState([]);
-    const [newNoteContent, setNewNoteContent] = useState('');
+/**
+ * Notes Component
+ * Manages a list of user notes, allowing adding, editing, and deleting.
+ * Notes are persisted in local storage.
+ * @param {Array<object>} notes - The array of note objects.
+ * @param {function} setNotes - Setter function for the notes array.
+ */
+const Notes = ({ notes, setNotes }) => {
+    // State to track which notes are currently open (expanded)
+    const [openNoteIds, setOpenNoteIds] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('openNoteIds');
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
+    const [newNoteContent, setNewNoteContent] = useState(''); // State for the new note input
 
-    // Fetch notes from Firestore on component mount and userId change
+    // Effect to save openNoteIds to local storage whenever it changes
     useEffect(() => {
-        if (!userId) return;
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('openNoteIds', JSON.stringify(openNoteIds));
+        }
+    }, [openNoteIds]);
 
-        const notesRef = collection(db, `artifacts/${appId}/users/${userId}/data/notes`);
-        const unsubscribe = onSnapshot(notesRef, (snapshot) => {
-            const fetchedNotes = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-            setNotes(fetchedNotes);
-        }, (error) => {
-            console.error("Error fetching notes:", error);
-        });
-
-        return () => unsubscribe(); // Cleanup listener
-    }, [userId, setNotes]);
-
+    /**
+     * Toggles the expanded/collapsed state of a note.
+     * @param {number} id - The ID of the note to toggle.
+     */
     const toggleNote = (id) => {
         setOpenNoteIds((prevIds) =>
             prevIds.includes(id) ? prevIds.filter((noteId) => noteId !== id) : [...prevIds, id]
         );
     };
 
-    const addNote = async () => {
+    /**
+     * Adds a new note to the list.
+     * The note content is taken from newNoteContent state.
+     */
+    const addNote = () => {
         if (newNoteContent.trim() !== '') {
-            try {
-                const notesRef = collection(db, `artifacts/${appId}/users/${userId}/data/notes`);
-                const newNoteDoc = await addDoc(notesRef, {
-                    content: newNoteContent.trim(),
-                    createdAt: new Date().toISOString(),
-                });
-                setNewNoteContent('');
-                toggleNote(newNoteDoc.id); // Open the newly added note
-            } catch (error) {
-                console.error("Error adding note:", error);
-            }
+            const newNote = {
+                id: Date.now(), // Unique ID for the note
+                content: newNoteContent,
+            };
+            setNotes([...notes, newNote]); // Add new note to the list
+            setNewNoteContent(''); // Clear input after adding
+            toggleNote(newNote.id); // Automatically open the new note
         }
     };
 
-    const updateNote = async (id, newContent) => {
-        try {
-            const noteDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/notes`, id);
-            await updateDoc(noteDocRef, { content: newContent });
-        } catch (error) {
-            console.error("Error updating note:", error);
-        }
+    /**
+     * Updates the content of an existing note.
+     * @param {number} id - The ID of the note to update.
+     * @param {string} newContent - The new content for the note.
+     */
+    const updateNote = (id, newContent) => {
+        const updatedNotes = notes.map((note) =>
+            note.id === id ? { ...note, content: newContent } : note
+        );
+        setNotes(updatedNotes);
     };
 
-    const deleteNote = async (id) => {
-        try {
-            const noteDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/notes`, id);
-            await deleteDoc(noteDocRef);
-            setOpenNoteIds(openNoteIds.filter((noteId) => noteId !== id)); // Remove from open notes
-        } catch (error) {
-            console.error("Error deleting note:", error);
-        }
+    /**
+     * Deletes a note from the list.
+     * @param {number} id - The ID of the note to delete.
+     */
+    const deleteNote = (id) => {
+        const updatedNotes = notes.filter((note) => note.id !== id);
+        setNotes(updatedNotes);
+        setOpenNoteIds(openNoteIds.filter((noteId) => noteId !== id)); // Remove from open notes
     };
 
+    // Ensure notes is always treated as an array to prevent errors
     const notesArray = Array.isArray(notes) ? notes : [];
 
     return (
         <div className="notes-container">
-            <h2>My Notes</h2>
             <div className="add-note-form">
                 <textarea
                     value={newNoteContent}
@@ -473,7 +235,6 @@ const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
                 <button onClick={addNote} className="add-note-button">Add Note</button>
             </div>
             <div className="notes-list">
-                {notesArray.length === 0 && <p className="no-notes-message">No notes yet. Add one above!</p>}
                 {notesArray.map((note) => (
                     <div key={note.id} className="note-card">
                         <div className="note-header">
@@ -481,16 +242,9 @@ const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
                                 className="note-title-button"
                                 onClick={() => toggleNote(note.id)}
                             >
-                                Note {notesArray.indexOf(note) + 1}
+                                Note {notesArray.indexOf(note) + 1} {/* Display note number */}
                             </button>
                             <div className="note-actions">
-                                <button
-                                    onClick={() => onSummarizeNote(note.content)}
-                                    disabled={!note.content.trim()}
-                                    className="summarize-note-button"
-                                >
-                                    ✨ Summarize
-                                </button>
                                 <button
                                     className="delete-note-button"
                                     onClick={() => deleteNote(note.id)}>
@@ -498,7 +252,7 @@ const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
                                 </button>
                             </div>
                         </div>
-                        {openNoteIds.includes(note.id) && (
+                        {openNoteIds.includes(note.id) && ( // Render textarea only if note is open
                             <textarea
                                 value={note.content}
                                 onChange={(e) => updateNote(note.id, e.target.value)}
@@ -512,529 +266,613 @@ const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
     );
 };
 
-// --- Main TodoApp Component ---
-function TodoApp() { // Removed 'export default'
-    const { currentUser, loadingAuth, signOutUser } = useContext(AuthContext);
-    const userId = currentUser?.uid;
+/**
+ * AuthPage Component
+ * Handles user sign-in and sign-up. This is a client-side simulation.
+ * In a real application, this would interact with a backend authentication API.
+ * @param {function} onAuthSuccess - Callback function to call upon successful authentication.
+ */
+const AuthPage = ({ onAuthSuccess }) => {
+    const [isSignIn, setIsSignIn] = useState(true); // true for sign-in, false for sign-up
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState(''); // For sign-up
+    const [error, setError] = useState(''); // To display authentication errors
 
-    // Helper to format date as YYYY-MM-DD in AEST timezone
-    const toAESTDateStr = (date) => {
-        if (!date) return '';
-        try {
-            // Ensure date is a valid Date object
-            const d = new Date(date);
-            if (isNaN(d.getTime())) {
-                console.warn("Invalid date provided to toAESTDateStr:", date);
-                return '';
+    /**
+     * Handles the authentication (sign-in or sign-up) attempt.
+     * This is a client-side simulation. In a real app, it would involve API calls.
+     * @param {Event} e - The form submission event.
+     */
+    const handleAuthenticate = async (e) => {
+        e.preventDefault();
+        setError(''); // Clear previous errors
+
+        if (isSignIn) {
+            // Simulate sign-in
+            if (email.trim() && password.trim()) {
+                // In a real application, you'd send these credentials to your backend
+                // const response = await fetch('/api/signin', { ... });
+                // const data = await response.json();
+                // if (response.ok) { onAuthSuccess(data); } else { setError(data.message); }
+
+                // For simulation:
+                console.log('Simulating sign-in for:', email);
+                onAuthSuccess({ userId: email, token: 'dummy_token_123' }); // Pass a dummy user object
+            } else {
+                setError("Please enter email and password.");
             }
-            return d
-                .toLocaleDateString('en-AU', {
-                    timeZone: 'Australia/Sydney',
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                })
-                .split('/')
-                .reverse()
-                .join('-');
-        } catch (error) {
-            console.error("Error formatting date", error);
-            return '';
+        } else {
+            // Simulate sign-up
+            if (password !== confirmPassword) {
+                setError("Passwords do not match.");
+                return;
+            }
+            if (email.trim() && password.trim() && confirmPassword.trim()) {
+                // In a real application, you'd send these credentials to your backend
+                // const response = await fetch('/api/signup', { ... });
+                // const data = await response.json();
+                // if (response.ok) { onAuthSuccess(data); } else { setError(data.message); }
+
+                // For simulation:
+                console.log('Simulating sign-up for:', email);
+                onAuthSuccess({ userId: email, token: 'dummy_token_456' }); // Pass a dummy user object
+            } else {
+                setError("Please fill all sign-up fields.");
+            }
         }
     };
 
-    const [tasks, setTasks] = useState([]);
-    const [input, setInput] = useState('');
-    const [taskDate, setTaskDate] = useState('');
-    const [taskTime, setTaskTime] = useState('');
-    const [frequency, setFrequency] = useState('once');
-    const [taskEndDate, setTaskEndDate] = useState('');
-    const [showTaskEndDatePicker, setShowTaskEndDatePicker] = useState(false);
-    const [view, setView] = useState('calendar');
-    const [menuOpen, setMenuOpen] = useState(false);
-    const [selectedDate, setSelectedDate] = useState(new Date());
+    return (
+        <div className="auth-container">
+            <h2>{isSignIn ? 'Sign In' : 'Sign Up'}</h2>
+            <form onSubmit={handleAuthenticate}>
+                <div className="form-group">
+                    <label htmlFor="email">Email:</label>
+                    <input
+                        type="email"
+                        id="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                    />
+                </div>
+                <div className="form-group">
+                    <label htmlFor="password">Password:</label>
+                    <input
+                        type="password"
+                        id="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                    />
+                </div>
+                {!isSignIn && ( // Only show confirm password for sign-up
+                    <div className="form-group">
+                        <label htmlFor="confirmPassword">Confirm Password:</label>
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            required
+                        />
+                    </div>
+                )}
+                {error && <p className="error-message">{error}</p>} {/* Display error messages */}
+                <button type="submit">
+                    {isSignIn ? 'Sign In' : 'Sign Up'}
+                </button>
+            </form>
+            <p>
+                {isSignIn ? "Don't have an account?" : "Already have an account?"}{' '}
+                <button type="button" onClick={() => setIsSignIn(!isSignIn)}>
+                    {isSignIn ? 'Sign Up' : 'Sign In'}
+                </button>
+            </p>
+        </div>
+    );
+};
 
-    const [files, setFiles] = useState([]);
-    const [currentFolder, setCurrentFolder] = useState(null);
-    const [newFolderName, setNewFolderName] = useState('');
-    const [fileTitle, setFileTitle] = useState('');
-    const [fileDate, setFileDate] = useState(toAESTDateStr(new Date()));
+/**
+ * TodoApp Component
+ * The main application component, integrating task management, notes, file management,
+ * and now, user authentication.
+ */
+export default function TodoApp() {
+    // --- Authentication State ---
+    const [user, setUser] = useState(() => {
+        // Attempt to load user data from session storage on initial load
+        // In a real app, a token might be in an HttpOnly cookie.
+        if (typeof window !== 'undefined') {
+            const savedUser = sessionStorage.getItem('currentUser');
+            return savedUser ? JSON.parse(savedUser) : null;
+        }
+        return null;
+    });
 
-    const [gotoInput, setGotoInput] = useState('');
-    const [editModalOpen, setEditModalOpen] = useState(false);
-    const [taskToEdit, setTaskToEdit] = useState(null);
-    const [notes, setNotes] = useState([]);
+    // --- Core Application States ---
+    const [tasks, setTasks] = useState(() => {
+        // Load tasks from localStorage, but only if a user is present (or if no user, load default)
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('tasks');
+            return saved ? JSON.parse(saved) : [];
+        }
+        return [];
+    });
+    const [input, setInput] = useState(''); // Task input text
+    const [taskDate, setTaskDate] = useState(''); // Task date
+    const [taskTime, setTaskTime] = useState(''); // Task time
+    const [frequency, setFrequency] = useState('once'); // Task recurrence frequency
+    const [taskEndDate, setTaskEndDate] = useState(''); // End date for new recurring tasks
+    const [showTaskEndDatePicker, setShowTaskEndDatePicker] = useState(false); // Visibility for new task end date picker
+    const [view, setView] = useState('calendar'); // Current view ('calendar', 'files', 'allTasks', 'notes')
+    const [menuOpen, setMenuOpen] = useState(false); // State for side menu visibility
+    const [selectedDate, setSelectedDate] = useState(new Date()); // Currently selected date in calendar
 
-    const [isLoading, setIsLoading] = useState(true);
-    const [showContinueButton, setShowContinueButton] = useState(false);
-    const [isFadingOut, setIsFadingOut] = useState(false);
+    // --- File/Folder Management States ---
+    const [files, setFiles] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const savedFiles = localStorage.getItem('myFiles');
+            try {
+                return savedFiles ? JSON.parse(savedFiles) : [];
+            } catch (e) {
+                console.error("Error parsing saved files: ", e);
+                return [];
+            }
+        }
+        return [];
+    });
+    const [currentFolder, setCurrentFolder] = useState(null); // null for root, or folder ID
+    const [newFolderName, setNewFolderName] = useState(''); // Input for new folder name
+    const [fileTitle, setFileTitle] = useState(''); // Input for file name when uploading
+    const [fileDate, setFileDate] = useState(toAESTDateStr(new Date())); // Date associated with the file/folder
 
-    // LLM states
-    const [llmResponseModalOpen, setLlmResponseModalOpen] = useState(false);
-    const [llmResponseTitle, setLlmResponseTitle] = useState('');
-    const [llmResponseContent, setLlmResponseContent] = useState('');
-    const [llmLoading, setLlmLoading] = useState(false);
-    const [llmError, setLlmError] = useState(null);
+    // --- Modal and Notes States ---
+    const [gotoInput, setGotoInput] = useState(''); // Input for "Go to Date"
+    const [editModalOpen, setEditModalOpen] = useState(false); // Visibility for edit task modal
+    const [taskToEdit, setTaskToEdit] = useState(null); // Task object currently being edited
+    const [notes, setNotes] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const savedNotes = localStorage.getItem('notes');
+            try {
+                return savedNotes ? JSON.parse(savedNotes) : [];
+            } catch (e) {
+                console.error("Error parsing saved notes: ", e);
+                return [];
+            }
+        }
+        return [];
+    });
 
-    // --- Loading Screen Effect ---
+    // --- Loading Screen States ---
+    const [isLoadingInitial, setIsLoadingInitial] = useState(true); // Initial loading state for the app
+    const [showContinueButton, setShowContinueButton] = useState(false); // Controls visibility of "Continue" button
+    const [isFadingOut, setIsFadingOut] = useState(false); // Controls fade-out animation for loading screen
+
+    // Effect for initial loading screen and "Continue" button timer
     useEffect(() => {
         const timer = setTimeout(() => {
             setShowContinueButton(true);
-        }, 3000); // Reduced to 3 seconds for faster testing
+        }, 5000); // Show continue button after 5 seconds
 
-        return () => clearTimeout(timer);
-    }, []);
+        // If a user is already authenticated (e.g., from a previous session),
+        // we can bypass the initial loading screen directly to the main app.
+        if (user) {
+            setIsLoadingInitial(false);
+        }
 
+        return () => clearTimeout(timer); // Cleanup timer
+    }, [user]); // Rerun if user state changes (e.g., after a successful login)
+
+    /**
+     * Handles the "Continue" button click on the loading screen.
+     * Initiates the fade-out animation and then hides the loading screen.
+     */
     const handleContinue = () => {
-        setIsFadingOut(true);
+        setIsFadingOut(true); // Start fade out animation
         setTimeout(() => {
-            setIsLoading(false);
-        }, 500);
+            setIsLoadingInitial(false); // Hide loading screen after fade
+        }, 500); // Match CSS transition duration for fade-out
     };
 
-    // --- Firestore Data Loading (Tasks, Files) ---
+    // --- Persistence Effects (now dependent on `user` state) ---
+    // Save tasks to localStorage whenever tasks or user state changes
     useEffect(() => {
-        if (!userId) {
-            setTasks([]);
-            setFiles([]);
-            setNotes([]);
-            return;
+        if (user && typeof window !== 'undefined') { // Only save if a user is logged in
+            localStorage.setItem('tasks', JSON.stringify(tasks));
         }
+    }, [tasks, user]);
 
-        // Tasks Listener
-        const tasksRef = collection(db, `artifacts/${appId}/users/${userId}/data/tasks`);
-        const unsubscribeTasks = onSnapshot(tasksRef, (snapshot) => {
-            const fetchedTasks = snapshot.docs.map(doc => ({
-                id: doc.id, // Store Firestore document ID
-                ...doc.data(),
-            }));
-            setTasks(fetchedTasks);
-        }, (error) => {
-            console.error("Error fetching tasks:", error);
-        });
-
-        // Files Listener
-        const filesRef = collection(db, `artifacts/${appId}/users/${userId}/data/files`);
-        const unsubscribeFiles = onSnapshot(filesRef, (snapshot) => {
-            const fetchedFiles = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-            setFiles(fetchedFiles);
-        }, (error) => {
-            console.error("Error fetching files:", error);
-        });
-
-        // Notes are handled by the Notes component directly
-
-        return () => {
-            unsubscribeTasks();
-            unsubscribeFiles();
-        }; // Cleanup listeners
-    }, [userId]); // Re-run when userId changes (on sign-in/out)
-
-    // --- Task Management Functions (Firestore) ---
-    const addTask = async () => {
-        if (!input.trim() || !taskDate) return;
-        if (!userId) {
-            console.warn("Cannot add task: User not authenticated.");
-            return;
+    // Save files to localStorage whenever files or user state changes
+    useEffect(() => {
+        if (user && typeof window !== 'undefined') { // Only save if a user is logged in
+            localStorage.setItem('myFiles', JSON.stringify(files));
         }
+    }, [files, user]);
 
+    // Save notes to localStorage whenever notes or user state changes
+    useEffect(() => {
+        if (user && typeof window !== 'undefined') { // Only save if a user is logged in
+            localStorage.setItem('notes', JSON.stringify(Array.isArray(notes) ? notes : []));
+        }
+    }, [notes, user]);
+
+    // --- Authentication Handlers ---
+    /**
+     * Callback function for successful authentication from AuthPage.
+     * Sets the user state and stores user info in session storage.
+     * Triggers fetching user-specific data (simulated here).
+     * @param {object} userData - Object containing user ID and token.
+     */
+    const handleAuthSuccess = (userData) => {
+        setUser(userData); // Store user info
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('currentUser', JSON.stringify(userData)); // Save user data
+        }
+        setIsLoadingInitial(false); // Hide loading/auth screen and show main app
+        console.log("Authentication successful, user data:", userData);
+        // In a real app, you would fetch user-specific data from a backend here
+        // fetchUserData(userData.userId);
+        // For this local storage based app, we just proceed.
+    };
+
+    /**
+     * Handles user logout.
+     * Clears user state, session storage, and all app data from local storage.
+     * Resets the app to the initial loading/authentication screen.
+     */
+    const handleLogout = () => {
+        setUser(null); // Clear user state
+        if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('currentUser'); // Clear session storage
+            // Clear all app data from local storage
+            localStorage.removeItem('tasks');
+            localStorage.removeItem('notes');
+            localStorage.removeItem('myFiles');
+        }
+        // Reset app states to empty
+        setTasks([]);
+        setNotes([]);
+        setFiles([]);
+        // Reset view to initial loading/auth screen
+        setIsLoadingInitial(true);
+        setShowContinueButton(false);
+        setIsFadingOut(false);
+    };
+
+    // --- Task Management Functions ---
+    /**
+     * Adds a new task to the list.
+     * Validates input and creates a new task object.
+     */
+    const addTask = () => {
+        if (!input.trim() || !taskDate) return; // Require task text and date
         const fullDate = taskTime ? `${taskDate}T${taskTime}` : taskDate;
-        try {
-            const tasksRef = collection(db, `artifacts/${appId}/users/${userId}/data/tasks`);
-            await addDoc(tasksRef, {
-                text: input.trim(),
-                date: fullDate,
-                frequency,
-                endDate: frequency !== 'once' ? taskEndDate : '',
-                createdAt: new Date().toISOString(), // Timestamp for ordering
-            });
-            setInput('');
-            setTaskDate('');
-            setTaskTime('');
-            setFrequency('once');
-            setTaskEndDate('');
-            setShowTaskEndDatePicker(false);
-        } catch (error) {
-            console.error("Error adding task:", error);
-        }
+        setTasks([...tasks, {
+            text: input.trim(),
+            date: fullDate,
+            frequency,
+            // Only save endDate if the task is recurring, otherwise clear it
+            endDate: frequency !== 'once' ? taskEndDate : '',
+        }]);
+        // Clear input fields after adding task
+        setInput('');
+        setTaskDate('');
+        setTaskTime('');
+        setFrequency('once');
+        setTaskEndDate('');
+        setShowTaskEndDatePicker(false);
     };
 
-    const removeTask = async (taskId) => {
-        if (!userId) return;
-        try {
-            const taskDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/tasks`, taskId);
-            await deleteDoc(taskDocRef);
-        } catch (error) {
-            console.error("Error removing task:", error);
-        }
+    /**
+     * Removes a task from the list by its index.
+     * @param {number} index - The index of the task to remove.
+     */
+    const removeTask = (index) => {
+        setTasks(prevTasks => prevTasks.filter((_, i) => i !== index));
     };
 
-    const openEditModal = (task) => {
-        setTaskToEdit(task);
+    /**
+     * Opens the Edit Task Modal with the selected task.
+     * @param {number} index - The index of the task to edit.
+     */
+    const openEditModal = (index) => {
+        setTaskToEdit(tasks[index]);
         setEditModalOpen(true);
     };
 
-    const saveEditedTask = async (editedTask) => {
-        if (!userId || !editedTask.id) return;
-        try {
-            const taskDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/tasks`, editedTask.id);
-            await updateDoc(taskDocRef, {
-                text: editedTask.text,
-                date: editedTask.date,
-                frequency: editedTask.frequency,
-                endDate: editedTask.endDate,
-            });
-            setTaskToEdit(null);
-            setEditModalOpen(false);
-        } catch (error) {
-            console.error("Error saving edited task:", error);
-        }
+    /**
+     * Saves the edited task back into the tasks list.
+     * @param {object} editedTask - The updated task object.
+     */
+    const saveEditedTask = (editedTask) => {
+        setTasks(prevTasks =>
+            prevTasks.map((task) =>
+                task === taskToEdit ? editedTask : task // Replace the original task object with the edited one
+            )
+        );
+        setTaskToEdit(null); // Clear the task being edited
     };
 
-    // --- LLM Feature: Suggest Sub-tasks ---
-    const handleSuggestSubtasks = async (taskText) => {
-        if (!taskText.trim()) {
-            setLlmError("Please enter a task to get suggestions.");
-            setLlmResponseModalOpen(true);
-            setLlmResponseTitle("Input Error");
-            setLlmResponseContent("Please enter a task to get suggestions.");
-            return;
-        }
+    // --- File/Folder Management Functions ---
+    /**
+     * Handles file uploads. Creates new file objects and adds them to the files list.
+     * @param {Event} e - The file input change event.
+     */
+    const handleFileUpload = (e) => {
+        const uploadedFiles = Array.from(e.target.files);
+        const newFiles = uploadedFiles.map((file, index) => {
+            const fileExtension = file.name.split('.').pop();
+            // Use fileTitle if provided, otherwise fallback to original file name
+            const finalFileName = fileTitle.trim() !== ''
+                ? `${fileTitle.trim()}.${fileExtension}`
+                : file.name;
 
-        setLlmLoading(true);
-        setLlmError(null);
-        setLlmResponseTitle("Suggested Sub-tasks");
-        setLlmResponseContent("Generating suggestions...");
-        setLlmResponseModalOpen(true);
+            return {
+                id: `file-${Date.now()}-${index}`, // Unique ID for the file
+                name: finalFileName,
+                type: 'file',
+                src: URL.createObjectURL(file), // Create a URL for local preview/download
+                date: fileDate, // Use the date from the input
+                parentId: currentFolder, // Associate with the current folder
+            };
+        });
 
-        const prompt = `Break down the following task into a list of smaller, actionable sub-tasks. Provide only the list of sub-tasks as a JSON array of strings. Do not include any other text.
-        Task: "${taskText}"`;
+        setFiles((prevFiles) => [...prevFiles, ...newFiles]); // Add new files to the list
+        setFileTitle(''); // Clear file title input after upload
+        e.target.value = null; // Clear file input (important for re-uploading same file)
+    };
 
-        const schema = {
-            type: "ARRAY",
-            items: { type: "STRING" }
+    /**
+     * Handles creating a new folder.
+     * @returns {void}
+     */
+    const handleCreateFolder = () => {
+        if (!newFolderName.trim()) return; // Require a folder name
+
+        const newFolder = {
+            id: `folder-${Date.now()}`, // Unique ID for the folder
+            name: newFolderName.trim(),
+            type: 'folder',
+            parentId: currentFolder, // Associate with the current folder
         };
 
-        try {
-            const suggestions = await callGeminiApi(prompt, schema);
-            setLlmResponseContent(suggestions);
-        } catch (error) {
-            setLlmError(error.message);
-            setLlmResponseContent(`Error: ${error.message}`);
-        } finally {
-            setLlmLoading(false);
-        }
+        setFiles((prevFiles) => [...prevFiles, newFolder]); // Add new folder to the list
+        setNewFolderName(''); // Clear folder name input
     };
 
-    const handleAddSuggestedTasks = async (suggestedTasks) => {
-        if (!userId) {
-            console.warn("Cannot add suggested tasks: User not authenticated.");
-            return;
-        }
-        setLlmResponseModalOpen(false); // Close the suggestion modal
-
-        const tasksRef = collection(db, `artifacts/${appId}/users/${userId}/data/tasks`);
-        const currentDateTime = new Date().toISOString();
-
-        for (const subtask of suggestedTasks) {
-            try {
-                await addDoc(tasksRef, {
-                    text: subtask,
-                    date: toAESTDateStr(new Date()), // Default to today's date
-                    frequency: 'once',
-                    endDate: '',
-                    createdAt: currentDateTime,
-                });
-            } catch (error) {
-                console.error("Error adding suggested subtask:", subtask, error);
-            }
-        }
-    };
-
-    // --- LLM Feature: Summarize Note ---
-    const handleSummarizeNote = async (noteContent) => {
-        if (!noteContent.trim()) {
-            setLlmError("Note is empty. Nothing to summarize.");
-            setLlmResponseModalOpen(true);
-            setLlmResponseTitle("Input Error");
-            setLlmResponseContent("Note is empty. Nothing to summarize.");
-            return;
-        }
-
-        setLlmLoading(true);
-        setLlmError(null);
-        setLlmResponseTitle("Note Summary");
-        setLlmResponseContent("Generating summary...");
-        setLlmResponseModalOpen(true);
-
-        const prompt = `Summarize the following note concisely:
-        Note: "${noteContent}"`;
-
-        try {
-            const summary = await callGeminiApi(prompt);
-            setLlmResponseContent(summary);
-        } catch (error) {
-            setLlmError(error.message);
-            setLlmResponseContent(`Error: ${error.message}`);
-        } finally {
-            setLlmLoading(false);
-        }
-    };
-
-
-    // --- File/Folder Management Functions (Firestore) ---
-    const handleFileUpload = async (e) => {
-        const uploadedFiles = Array.from(e.target.files);
-        if (uploadedFiles.length === 0 || !userId) return;
-
-        try {
-            const filesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/data/files`);
-            for (const file of uploadedFiles) {
-                const fileExtension = file.name.split('.').pop();
-                const finalFileName = fileTitle.trim() !== ''
-                    ? `${fileTitle.trim()}.${fileExtension}`
-                    : file.name;
-
-                // For simplicity, we're not storing actual file data in Firestore.
-                // In a real app, you'd upload the file to cloud storage (e.g., Firebase Storage)
-                // and store the download URL here. For this demo, we'll use a placeholder URL.
-                const placeholderSrc = URL.createObjectURL(file); // For local preview
-
-                await addDoc(filesCollectionRef, {
-                    name: finalFileName,
-                    type: 'file',
-                    src: placeholderSrc, // This URL is temporary and won't persist across sessions
-                    date: fileDate,
-                    parentId: currentFolder,
-                    uploadedAt: new Date().toISOString(),
-                });
-            }
-            setFileTitle('');
-            e.target.value = null; // Clear file input
-        } catch (error) {
-            console.error("Error uploading file:", error);
-        }
-    };
-
-    const handleCreateFolder = async () => {
-        if (!newFolderName.trim() || !userId) return;
-
-        try {
-            const filesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/data/files`);
-            await addDoc(filesCollectionRef, {
-                name: newFolderName.trim(),
-                type: 'folder',
-                parentId: currentFolder,
-                createdAt: new Date().toISOString(),
-            });
-            setNewFolderName('');
-        } catch (error) {
-            console.error("Error creating folder:", error);
-        }
-    };
-
-    const removeFile = async (idToRemove) => {
-        if (!userId) return;
-
-        try {
-            // Helper function to get all descendant IDs (including subfolders and files within them)
-            const getAllDescendantIds = async (targetId, allItems) => {
-                let ids = [targetId];
-                const children = allItems.filter(item => item.parentId === targetId);
-                for (const child of children) {
-                    if (child.type === 'folder') {
-                        ids = ids.concat(await getAllDescendantIds(child.id, allItems));
-                    } else {
-                        ids.push(child.id);
-                    }
+    /**
+     * Removes a file or folder and all its descendants (if it's a folder).
+     * Revokes object URLs for deleted files to free up memory.
+     * @param {string} idToRemove - The ID of the item to remove.
+     */
+    const removeFile = (idToRemove) => {
+        // Helper recursive function to get all descendant IDs (including subfolders and files within them)
+        const getAllDescendantIds = (targetId, allItems) => {
+            let ids = [targetId];
+            const children = allItems.filter(item => item.parentId === targetId);
+            children.forEach(child => {
+                if (child.type === 'folder') {
+                    ids = ids.concat(getAllDescendantIds(child.id, allItems));
+                } else {
+                    ids.push(child.id);
                 }
-                return ids;
-            };
+            });
+            return ids;
+        };
 
-            const idsToDelete = await getAllDescendantIds(idToRemove, files);
+        setFiles(prevFiles => {
+            const itemToRemove = prevFiles.find(item => item.id === idToRemove);
+            if (!itemToRemove) return prevFiles; // Item not found, return original array
 
-            // Revoke object URLs for files being deleted (for local preview cleanup)
+            const idsToDelete = getAllDescendantIds(idToRemove, prevFiles);
+
+            // Revoke object URLs for all files being deleted to free up memory
             idsToDelete.forEach(id => {
-                const file = files.find(item => item.id === id && item.type === 'file');
-                if (file && file.src && file.src.startsWith('blob:')) {
+                const file = prevFiles.find(item => item.id === id && item.type === 'file');
+                if (file && file.src) {
                     URL.revokeObjectURL(file.src);
                 }
             });
 
-            // Delete documents from Firestore
-            for (const id of idsToDelete) {
-                const docRef = doc(db, `artifacts/${appId}/users/${userId}/data/files`, id);
-                await deleteDoc(docRef);
-            }
-        } catch (error) {
-            console.error("Error removing file/folder:", error);
-        }
+            // Filter out all items whose IDs are in the idsToDelete list
+            return prevFiles.filter(item => !idsToDelete.includes(item.id));
+        });
     };
 
-    // --- Calendar Logic (remains mostly the same, uses local 'tasks' state) ---
-    const tasksByDate = tasks.reduce((acc, task) => {
-        const startDate = new Date(task.date);
-        const endDate = task.endDate ? new Date(task.endDate) : null;
-        const taskWithId = { ...task }; // Use task.id from Firestore
+    // --- Calendar & Date Functions ---
+    // Memoized tasksByDate to avoid re-calculating on every render
+    const tasksByDate = useMemo(() => {
+        return tasks.reduce((acc, task, i) => {
+            const startDate = new Date(task.date);
+            const endDate = task.endDate ? new Date(task.endDate) : null;
+            const taskWithIndex = { ...task, index: i }; // Add original index for editing/deleting
 
-        startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(0, 0, 0, 0);
+            // Normalize dates to start of day for accurate comparison
+            startDate.setHours(0, 0, 0, 0);
+            if (endDate) endDate.setHours(0, 0, 0, 0);
 
-        if (task.frequency === 'once') {
-            const dateKey = toAESTDateStr(startDate);
-            if (!acc[dateKey]) acc[dateKey] = [];
-            acc[dateKey].push(taskWithId);
-        } else {
-            let currentDate = new Date(startDate);
-            const startDayOfWeek = startDate.getDay();
-            const startDayOfMonth = startDate.getDate();
-            const startMonth = startDate.getMonth();
-
-            if (!endDate) {
+            // If it's a 'once' task, just add it to its specific date
+            if (task.frequency === 'once') {
                 const dateKey = toAESTDateStr(startDate);
                 if (!acc[dateKey]) acc[dateKey] = [];
-                acc[dateKey].push(taskWithId);
-                return acc;
-            }
+                acc[dateKey].push(taskWithIndex);
+            } else {
+                // For recurring tasks, iterate through the dates
+                let currentDate = new Date(startDate);
+                const startDayOfWeek = startDate.getDay(); // 0 for Sunday, 6 for Saturday
+                const startDayOfMonth = startDate.getDate();
+                const startMonth = startDate.getMonth();
 
-            while (currentDate <= endDate) {
-                let shouldAddTask = false;
-
-                if (task.frequency === 'daily') {
-                    shouldAddTask = true;
-                } else if (task.frequency === 'weekly') {
-                    if (currentDate.getDay() === startDayOfWeek) {
-                        shouldAddTask = true;
-                    }
-                } else if (task.frequency === 'monthly') {
-                    const lastDayOfCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-                    const lastDayOfStartMonth = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
-
-                    if (currentDate.getDate() === startDayOfMonth ||
-                        (startDayOfMonth > lastDayOfCurrentMonth && currentDate.getDate() === lastDayOfCurrentMonth) ||
-                        (startDayOfMonth === lastDayOfStartMonth && currentDate.getDate() === lastDayOfCurrentMonth)
-                    ) {
-                        shouldAddTask = true;
-                    }
-                } else if (task.frequency === 'yearly') {
-                    if (currentDate.getMonth() === startMonth && currentDate.getDate() === startDayOfMonth) {
-                        shouldAddTask = true;
-                    }
-                }
-
-                if (shouldAddTask) {
-                    const dateKey = toAESTDateStr(currentDate);
+                // If no end date is provided for a recurring task, it only shows on its start date
+                if (!endDate) {
+                    const dateKey = toAESTDateStr(startDate);
                     if (!acc[dateKey]) acc[dateKey] = [];
-                    acc[dateKey].push(taskWithId);
+                    acc[dateKey].push(taskWithIndex);
+                    return acc; // Move to the next task
                 }
-                currentDate.setDate(currentDate.getDate() + 1);
+
+                // Loop from start date to end date (inclusive)
+                while (currentDate <= endDate) {
+                    let shouldAddTask = false;
+
+                    if (task.frequency === 'daily') {
+                        shouldAddTask = true;
+                    } else if (task.frequency === 'weekly') {
+                        if (currentDate.getDay() === startDayOfWeek) {
+                            shouldAddTask = true;
+                        }
+                    } else if (task.frequency === 'monthly') {
+                        // Handle monthly recurrence, considering months with different day counts
+                        const lastDayOfCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+                        const lastDayOfStartMonth = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+
+                        if (currentDate.getDate() === startDayOfMonth ||
+                            (startDayOfMonth > lastDayOfCurrentMonth && currentDate.getDate() === lastDayOfCurrentMonth) ||
+                            (startDayOfMonth === lastDayOfStartMonth && currentDate.getDate() === lastDayOfCurrentMonth)
+                        ) {
+                            shouldAddTask = true;
+                        }
+                    } else if (task.frequency === 'yearly') {
+                        if (currentDate.getMonth() === startMonth && currentDate.getDate() === startDayOfMonth) {
+                            shouldAddTask = true;
+                        }
+                    }
+
+                    if (shouldAddTask) {
+                        const dateKey = toAESTDateStr(currentDate);
+                        if (!acc[dateKey]) acc[dateKey] = [];
+                        acc[dateKey].push(taskWithIndex);
+                    }
+
+                    // Move to the next day
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
             }
-        }
-        return acc;
-    }, {});
+            return acc;
+        }, {});
+    }, [tasks]); // Recalculate only when tasks array changes
 
     const year = selectedDate.getFullYear();
     const month = selectedDate.getMonth();
 
-    const firstDayOfMonth = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 for Sunday, 6 for Saturday
+    const daysInMonth = new Date(year, month + 1, 0).getDate(); // Number of days in the current month
 
     const calendarDays = [];
-    for (let i = 0; i < 35; i++) {
+    // Populate calendar grid with days (including empty cells for padding)
+    for (let i = 0; i < 35; i++) { // 5 rows * 7 days = 35 cells (enough for most months)
         const dayNum = i - firstDayOfMonth + 1;
         calendarDays.push(dayNum < 1 || dayNum > daysInMonth ? null : new Date(year, month, dayNum));
     }
 
-    const today = toAESTDateStr(new Date());
+    const today = toAESTDateStr(new Date()); // Get today's date in AEST format
 
+    /**
+     * Changes the displayed month in the calendar.
+     * @param {number} offset - -1 for previous month, 1 for next month.
+     */
     const changeMonth = (offset) => {
         const newDate = new Date(selectedDate);
         newDate.setMonth(newDate.getMonth() + offset);
         setSelectedDate(newDate);
     };
 
+    /**
+     * Handles "Go to Date" input. Navigates the calendar to the specified date.
+     */
     const handleGoto = () => {
         if (!gotoInput) return;
         const newDate = new Date(gotoInput);
-        if (!isNaN(newDate)) setSelectedDate(newDate);
-        setGotoInput('');
+        if (!isNaN(newDate.getTime())) setSelectedDate(newDate); // Check for valid date
+        setGotoInput(''); // Clear input
     };
 
+    // Determine if the currently selected frequency for adding a task is recurring
     const isAddingRecurring = ['daily', 'weekly', 'monthly', 'yearly'].includes(frequency);
 
+    // Filter files/folders for the current folder view
     const itemsInCurrentFolder = files.filter(item => item.parentId === currentFolder);
-
-    if (loadingAuth) {
-        return (
-            <div className="loading-screen">
-                <div className="loading-text">Loading authentication...</div>
-            </div>
-        );
-    }
-
-    if (!currentUser) {
-        return <AuthScreen />;
-    }
 
     return (
         <>
-            {isLoading ? (
+            {/* Conditional rendering for Loading Screen / Auth Page / Main App */}
+            {isLoadingInitial && !user ? ( // Show loading screen if no user is authenticated
                 <div className={`loading-screen ${isFadingOut ? 'fade-out' : ''}`}>
                     <h1 className="loading-text">"What are you doing today?"</h1>
                     {showContinueButton && (
-                        <button className="continue-button" onClick={handleContinue}>
-                            Continue
-                        </button>
+                        <>
+                            <button className="continue-button" onClick={handleContinue}>
+                                Continue
+                            </button>
+                            {/* Render AuthPage if not fading out and no user is authenticated */}
+                            {!user && !isFadingOut && (
+                                <AuthPage onAuthSuccess={handleAuthSuccess} />
+                            )}
+                        </>
                     )}
                 </div>
-            ) : (
+            ) : ( // Render main application if a user is authenticated (or after loading screen if no auth)
                 <div className="app-container">
-                    {/* Side Menu */}
-                    <div className={`side-menu ${menuOpen ? 'open' : ''}`}>
-                        <button className="menu-toggle" onClick={() => setMenuOpen(false)}>
-                            &times;
-                        </button>
-                        <h2>Menu</h2>
-                        <nav className="side-menu-nav">
-                            <button onClick={() => { setView('calendar'); setMenuOpen(false); }}>
-                                Calendar View
-                            </button>
-                            <button onClick={() => { setView('files'); setMenuOpen(false); }}>
-                                My Files
-                            </button>
-                            <button onClick={() => { setView('allTasks'); setMenuOpen(false); }}>
-                                My Task Gallery
-                            </button>
-                            <button onClick={() => { setView('notes'); setMenuOpen(false); }}>
-                                Notes
-                            </button>
-                        </nav>
-                        <div className="user-info">
-                            <p>Logged in as:</p>
-                            <p className="user-id">{currentUser?.email || currentUser?.uid}</p>
-                            <button onClick={signOutUser} className="sign-out-button">
-                                Sign Out
-                            </button>
-                        </div>
+                    {/* Top bar for user info and logout button */}
+                    <div className="top-bar">
+                        {user && <span className="user-info">Logged in as: {user.userId}</span>}
+                        <button className="logout-button" onClick={handleLogout}>Logout</button>
                     </div>
 
-                    {/* Main Content Area */}
-                    <div className="main-view">
-                        <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>
-                            ☰
-                        </button>
+                    {/* Menu toggle button for mobile */}
+                    <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>
+                        ☰
+                    </button>
 
+                    {/* Side Menu */}
+                    <div className={`side-menu ${menuOpen ? 'open' : ''}`}>
+                        <button
+                            onClick={() => {
+                                setView('calendar');
+                                setMenuOpen(false);
+                            }}
+                        >
+                            Calendar View
+                        </button>
+                        <button
+                            onClick={() => {
+                                setView('files');
+                                setMenuOpen(false);
+                            }}
+                        >
+                            My Files
+                        </button>
+                        <button
+                            onClick={() => {
+                                setView('allTasks');
+                                setMenuOpen(false);
+                            }}
+                        >
+                            My Task Gallery
+                        </button>
+                        <button
+                            onClick={() => {
+                                setView('notes');
+                                setMenuOpen(false);
+                            }}
+                        >
+                            Notes
+                        </button>
+                    </div>
+
+                    {/* Main Content View */}
+                    <div className="main-view">
                         {view === 'calendar' && (
                             <>
                                 <h2>
                                     The Organizer 📅 - {selectedDate.toLocaleString('default', { month: 'long' })} {year}
                                 </h2>
 
+                                {/* Add Task Form */}
                                 <div className="add-task-form">
-                                    <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Task Name" />
+                                    <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Task" />
                                     <input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} />
                                     <input type="time" value={taskTime} onChange={(e) => setTaskTime(e.target.value)} />
                                     <select value={frequency} onChange={(e) => {
@@ -1053,6 +891,7 @@ function TodoApp() { // Removed 'export default'
                                         <option value="yearly">Yearly</option>
                                     </select>
 
+                                    {/* End Date Picker for Recurring Tasks */}
                                     {isAddingRecurring && (
                                         <div className="end-date-section">
                                             <label>Ends:</label>
@@ -1064,7 +903,10 @@ function TodoApp() { // Removed 'export default'
                                                         onChange={(e) => setTaskEndDate(e.target.value)}
                                                     />
                                                     {taskEndDate && (
-                                                        <button onClick={() => { setTaskEndDate(''); setShowTaskEndDatePicker(false); }}>Clear End Date</button>
+                                                        <button onClick={() => {
+                                                            setTaskEndDate('');
+                                                            setShowTaskEndDatePicker(false);
+                                                        }}>Clear End Date</button>
                                                     )}
                                                 </>
                                             ) : (
@@ -1073,16 +915,11 @@ function TodoApp() { // Removed 'export default'
                                             {taskEndDate && <p>Ends on: {new Date(taskEndDate).toLocaleDateString()}</p>}
                                         </div>
                                     )}
-                                    <button onClick={addTask}>Add Task</button>
-                                    <button
-                                        onClick={() => handleSuggestSubtasks(input)}
-                                        disabled={!input.trim()}
-                                        className="suggest-subtasks-button"
-                                    >
-                                        ✨ Suggest Sub-tasks
-                                    </button>
+
+                                    <button onClick={addTask}>Add</button>
                                 </div>
 
+                                {/* Calendar Navigation Buttons */}
                                 <div className="nav-buttons">
                                     <button onClick={() => setSelectedDate(new Date())}>Go to Today</button>
                                     <input type="date" value={gotoInput} onChange={(e) => setGotoInput(e.target.value)} />
@@ -1091,12 +928,8 @@ function TodoApp() { // Removed 'export default'
                                     <button onClick={() => changeMonth(1)}>Next Month</button>
                                 </div>
 
+                                {/* Calendar Grid */}
                                 <div className="calendar-grid">
-                                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                                        <div key={day} className="calendar-header-day">
-                                            {day}
-                                        </div>
-                                    ))}
                                     {calendarDays.map((day, index) => {
                                         if (!day) return <div key={index} className="calendar-cell empty"></div>;
 
@@ -1111,34 +944,33 @@ function TodoApp() { // Removed 'export default'
                                             >
                                                 <strong>{day.getDate()}</strong>
 
-                                                <div className="tasks-list custom-scrollbar">
-                                                    {tasksForDay.length > 3 ? (
-                                                        <details className="task-details">
-                                                            <summary className="task-summary">{tasksForDay.length} tasks</summary>
-                                                            {tasksForDay.map((task) => (
-                                                                <div key={task.id} className="task-entry">
-                                                                    {task.text} {task.frequency && `(${task.frequency})`}
-                                                                    {task.endDate && ` (Ends: ${new Date(task.endDate).toLocaleDateString()})`}
-                                                                    <div className="task-actions">
-                                                                        <button onClick={() => openEditModal(task)}>Edit</button>
-                                                                        <button onClick={() => removeTask(task.id)}>Delete</button>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </details>
-                                                    ) : (
-                                                        tasksForDay.map((task) => (
-                                                            <div key={task.id} className="task-entry">
+                                                {/* Display tasks for the day, with a "details" summary if more than 3 */}
+                                                {tasksForDay.length > 3 ? (
+                                                    <details>
+                                                        <summary>{tasksForDay.length} tasks</summary>
+                                                        {tasksForDay.map((task) => (
+                                                            <div key={task.index} className="task-entry">
                                                                 {task.text} {task.frequency && `(${task.frequency})`}
                                                                 {task.endDate && ` (Ends: ${new Date(task.endDate).toLocaleDateString()})`}
                                                                 <div className="task-actions">
-                                                                    <button onClick={() => openEditModal(task)}>Edit</button>
-                                                                    <button onClick={() => removeTask(task.id)}>Delete</button>
+                                                                    <button onClick={() => openEditModal(task.index)}>Edit</button>
+                                                                    <button onClick={() => removeTask(task.index)}>Delete</button>
                                                                 </div>
                                                             </div>
-                                                        ))
-                                                    )}
-                                                </div>
+                                                        ))}
+                                                    </details>
+                                                ) : (
+                                                    tasksForDay.map((task) => (
+                                                        <div key={task.index} className="task-entry">
+                                                            {task.text} {task.frequency && `(${task.frequency})`}
+                                                            {task.endDate && ` (Ends: ${new Date(task.endDate).toLocaleDateString()})`}
+                                                            <div className="task-actions">
+                                                                <button onClick={() => openEditModal(task.index)}>Edit</button>
+                                                                <button onClick={() => removeTask(task.index)}>Delete</button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -1150,10 +982,12 @@ function TodoApp() { // Removed 'export default'
                             <div>
                                 <h2>My Files</h2>
 
+                                {/* Breadcrumbs for navigation */}
                                 {currentFolder && (
                                     <button className="back-button" onClick={() => setCurrentFolder(null)}>← Back to Root</button>
                                 )}
 
+                                {/* Add New Folder Form */}
                                 <div className="add-file-form">
                                     <input
                                         type="text"
@@ -1162,10 +996,13 @@ function TodoApp() { // Removed 'export default'
                                         onChange={(e) => setNewFolderName(e.target.value)}
                                     />
                                     <button onClick={handleCreateFolder}>Create Folder</button>
+                                </div>
 
+                                {/* Add New File Form */}
+                                <div className="add-file-form">
                                     <input
                                         type="text"
-                                        placeholder="File Title (optional)"
+                                        placeholder="File Title (Optional)"
                                         value={fileTitle}
                                         onChange={(e) => setFileTitle(e.target.value)}
                                     />
@@ -1174,35 +1011,30 @@ function TodoApp() { // Removed 'export default'
                                         value={fileDate}
                                         onChange={(e) => setFileDate(e.target.value)}
                                     />
-                                    <label className="upload-file-button">
-                                        Upload File
-                                        <input type="file" multiple onChange={handleFileUpload} className="hidden-input" />
-                                    </label>
+                                    <input
+                                        type="file"
+                                        onChange={handleFileUpload}
+                                        multiple // Allow multiple file selection
+                                    />
                                 </div>
 
-                                <div className="file-gallery">
-                                    {itemsInCurrentFolder.length === 0 && <p className="no-items-message">No items in this folder. Add some!</p>}
+                                {/* File/Folder Grid */}
+                                <div className="file-grid">
                                     {itemsInCurrentFolder.map((item) => (
-                                        <div key={item.id} className="file-item">
+                                        <div key={item.id} className={`file-item ${item.type}`}>
                                             {item.type === 'folder' ? (
-                                                <button onClick={() => setCurrentFolder(item.id)} className="folder-item">
-                                                    <span className="folder-icon">📁</span>
-                                                    <span className="file-name">{item.name}</span>
+                                                <button className="folder-name" onClick={() => setCurrentFolder(item.id)}>
+                                                    📁 {item.name}
                                                 </button>
                                             ) : (
-                                                <a href={item.src} target="_blank" rel="noopener noreferrer" className="file-link">
-                                                    {item.src && (item.name.toLowerCase().endsWith('.png') || item.name.toLowerCase().endsWith('.jpg') || item.name.toLowerCase().endsWith('.jpeg') || item.name.toLowerCase().endsWith('.gif')) ? (
-                                                        <img src={item.src} alt={item.name} className="file-image" />
-                                                    ) : (
-                                                        <span className="file-icon">📄</span>
-                                                    )}
-                                                    <span className="file-name">{item.name}</span>
-                                                </a>
+                                                <>
+                                                    <a href={item.src} download={item.name} target="_blank" rel="noopener noreferrer">
+                                                        📄 {item.name}
+                                                    </a>
+                                                    {item.date && <p className="file-date">Date: {item.date}</p>}
+                                                </>
                                             )}
-                                            <div className="file-info">
-                                                <span>{item.date}</span>
-                                                <button onClick={() => removeFile(item.id)}>Delete</button>
-                                            </div>
+                                            <button className="delete-file-button" onClick={() => removeFile(item.id)}>Delete</button>
                                         </div>
                                     ))}
                                 </div>
@@ -1212,17 +1044,16 @@ function TodoApp() { // Removed 'export default'
                         {view === 'allTasks' && (
                             <div>
                                 <h2>My Task Gallery</h2>
-                                <div className="task-gallery">
-                                    {tasks.length === 0 && <p className="no-tasks-message">No tasks yet. Add some in Calendar View!</p>}
-                                    {tasks.map((task) => (
-                                        <div key={task.id} className="task-entry-gallery">
-                                            <p className="task-text">{task.text}</p>
-                                            <p className="task-details-gallery">Date: {toAESTDateStr(task.date)} {task.date.includes('T') && new Date(task.date).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
-                                            <p className="task-details-gallery">Frequency: {task.frequency}</p>
-                                            {task.endDate && <p className="task-details-gallery">Ends: {toAESTDateStr(task.endDate)}</p>}
-                                            <div className="task-actions-gallery">
-                                                <button onClick={() => openEditModal(task)}>Edit</button>
-                                                <button onClick={() => removeTask(task.id)}>Delete</button>
+                                <div className="task-gallery-list">
+                                    {tasks.map((task, index) => (
+                                        <div key={index} className="task-entry">
+                                            {task.text} - {new Date(task.date).toLocaleDateString()}
+                                            {task.time && ` at ${task.time}`}
+                                            {task.frequency && ` (${task.frequency})`}
+                                            {task.endDate && ` (Ends: ${new Date(task.endDate).toLocaleDateString()})`}
+                                            <div className="task-actions">
+                                                <button onClick={() => openEditModal(index)}>Edit</button>
+                                                <button onClick={() => removeTask(index)}>Delete</button>
                                             </div>
                                         </div>
                                     ))}
@@ -1231,31 +1062,19 @@ function TodoApp() { // Removed 'export default'
                         )}
 
                         {view === 'notes' && (
-                            <Notes notes={notes} setNotes={setNotes} userId={userId} onSummarizeNote={handleSummarizeNote} />
+                            <Notes notes={notes} setNotes={setNotes} />
                         )}
+
                     </div>
+                    {/* Edit Task Modal */}
+                    <EditTaskModal
+                        isOpen={editModalOpen}
+                        onClose={() => setEditModalOpen(false)}
+                        task={taskToEdit}
+                        onSave={saveEditedTask}
+                    />
                 </div>
             )}
-            <EditTaskModal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} task={taskToEdit} onSave={saveEditedTask} onSuggestSubtasks={handleSuggestSubtasks} />
-
-            <LLMResponseModal
-                isOpen={llmResponseModalOpen}
-                onClose={() => setLlmResponseModalOpen(false)}
-                title={llmResponseTitle}
-                content={llmLoading ? "Loading..." : (llmError || llmResponseContent)}
-                onAddAsTasks={llmResponseTitle === "Suggested Sub-tasks" ? handleAddSuggestedTasks : null}
-            />
         </>
     );
 }
-
-// Root component for the entire application
-function App() {
-    return (
-        <AuthProvider>
-            <TodoApp />
-        </AuthProvider>
-    );
-}
-
-export default App;
