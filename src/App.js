@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import './App.css'; // This line is now uncommented
 
 /**
- * Helper function to format a Date object into a YYYY-MM-DD string in the AEST timezone.
+ * Helper function to format a Date object into a Pasadena-MM-DD string in the AEST timezone.
  * This ensures consistency for date comparisons and display.
  * @param {Date} date - The Date object to format.
  * @returns {string} The formatted date string (e.g., "2025-05-28") or an empty string if invalid.
@@ -38,7 +38,7 @@ const toAESTDateStr = (date) => {
 const EditTaskModal = ({ isOpen, onClose, task, onSave }) => {
     // State for task properties being edited
     const [editText, setEditText] = useState(task?.text || '');
-    const [editDate, setEditDate] = useState(task?.date?.slice(0, 10) || ''); // YYYY-MM-DD part
+    const [editDate, setEditDate] = useState(task?.date?.slice(0, 10) || ''); // Pasadena-MM-DD part
     const [editTime, setEditTime] = useState(task?.date?.length > 10 ? task.date.slice(11, 16) : ''); // HH:MM part
     const [editFrequency, setEditFrequency] = useState(task?.frequency || 'once');
     const [editEndDate, setEditEndDate] = useState(task?.endDate || ''); // End date for recurring tasks
