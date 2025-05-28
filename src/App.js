@@ -447,19 +447,24 @@ export default function TodoApp() {
 
     // --- Loading Screen States ---
     const [isLoadingInitial, setIsLoadingInitial] = useState(true); // Initial loading state for the app
+    const [showAuthForm, setShowAuthForm] = useState(false); // Controls when the AuthPage is rendered
     const [showContinueButton, setShowContinueButton] = useState(false); // Controls visibility of "Continue" button
     const [isFadingOut, setIsFadingOut] = useState(false); // Controls fade-out animation for loading screen
 
     // Effect for initial loading screen and "Continue" button timer
     useEffect(() => {
         const timer = setTimeout(() => {
-            setShowContinueButton(true);
-        }, 5000); // Show continue button after 5 seconds
+            // After 5 seconds, if no user is logged in, show the authentication form
+            if (!user) {
+                setShowAuthForm(true);
+            }
+        }, 5000); // Show AuthPage after 5 seconds if not logged in
 
         // If a user is already authenticated (e.g., from a previous session),
         // we can bypass the initial loading screen directly to the main app.
         if (user) {
             setIsLoadingInitial(false);
+            setShowContinueButton(true); // If already logged in, the continue button is effectively "clicked"
         }
 
         return () => clearTimeout(timer); // Cleanup timer
@@ -510,7 +515,8 @@ export default function TodoApp() {
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('currentUser', JSON.stringify(userData)); // Save user data
         }
-        setIsLoadingInitial(false); // Hide loading/auth screen and show main app
+        setShowAuthForm(false); // Hide the auth form
+        setShowContinueButton(true); // Make the "Continue" button visible
         console.log("Authentication successful, user data:", userData);
         // In a real app, you would fetch user-specific data from a backend here
         // fetchUserData(userData.userId);
@@ -537,7 +543,8 @@ export default function TodoApp() {
         setFiles([]);
         // Reset view to initial loading/auth screen
         setIsLoadingInitial(true);
-        setShowContinueButton(false);
+        setShowAuthForm(false); // Ensure auth form is hidden initially
+        setShowContinueButton(false); // Ensure continue button is hidden
         setIsFadingOut(false);
     };
 
@@ -801,16 +808,13 @@ export default function TodoApp() {
             {isLoadingInitial && !user ? ( // Show loading screen if no user is authenticated
                 <div className={`loading-screen ${isFadingOut ? 'fade-out' : ''}`}>
                     <h1 className="loading-text">"What are you doing today?"</h1>
-                    {showContinueButton && (
-                        <>
-                            <button className="continue-button" onClick={handleContinue}>
-                                Continue
-                            </button>
-                            {/* Render AuthPage if not fading out and no user is authenticated */}
-                            {!user && !isFadingOut && (
-                                <AuthPage onAuthSuccess={handleAuthSuccess} />
-                            )}
-                        </>
+                    {showAuthForm && !user && ( // Render AuthPage after delay if no user is logged in
+                        <AuthPage onAuthSuccess={handleAuthSuccess} />
+                    )}
+                    {showContinueButton && user && ( // Render Continue button only if user is logged in
+                        <button className="continue-button" onClick={handleContinue}>
+                            Continue
+                        </button>
                     )}
                 </div>
             ) : ( // Render main application if a user is authenticated (or after loading screen if no auth)
