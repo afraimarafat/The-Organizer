@@ -24,7 +24,7 @@ import {
     updateDoc,
 } from 'firebase/firestore';
 
-// Tailwind CSS is assumed to be available, so we just need the classes.
+import './App.css'; // Don't forget to import your CSS!
 
 // --- Firebase Configuration and Context ---
 const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
@@ -173,32 +173,32 @@ const LLMResponseModal = ({ isOpen, onClose, title, content, onAddAsTasks = null
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-lg space-y-4">
-                <h3 className="text-2xl font-bold text-gray-800 mb-4">{title}</h3>
-                <div className="max-h-96 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <h3>{title}</h3>
+                <div className="llm-response-content">
                     {Array.isArray(content) ? (
-                        <ul className="list-disc list-inside space-y-1">
+                        <ul className="llm-list">
                             {content.map((item, index) => (
-                                <li key={index} className="text-gray-700">{item}</li>
+                                <li key={index}>{item}</li>
                             ))}
                         </ul>
                     ) : (
-                        <p className="text-gray-700 whitespace-pre-wrap">{content}</p>
+                        <p className="llm-text">{content}</p>
                     )}
                 </div>
-                <div className="flex justify-end space-x-3 mt-6">
+                <div className="modal-buttons">
                     {onAddAsTasks && Array.isArray(content) && content.length > 0 && (
                         <button
                             onClick={() => onAddAsTasks(content)}
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-5 rounded-lg transition duration-300 transform hover:scale-105 shadow-md"
+                            className="llm-add-tasks-button"
                         >
                             Add All as New Tasks
                         </button>
                     )}
                     <button
                         onClick={onClose}
-                        className="bg-gray-400 hover:bg-gray-500 text-gray-800 font-bold py-2 px-5 rounded-lg transition duration-300 transform hover:scale-105 shadow-md"
+                        className="llm-close-button"
                     >
                         Close
                     </button>
@@ -240,54 +240,40 @@ const AuthScreen = () => {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 to-purple-100 p-4">
-            <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
-                <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
-                    {isLogin ? 'Sign In' : 'Sign Up'}
-                </h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-gray-700 text-sm font-semibold mb-2" htmlFor="email">
-                            Email
-                        </label>
+        <div className="auth-container">
+            <div className="auth-card">
+                <h2>{isLogin ? 'Sign In' : 'Sign Up'}</h2>
+                <form onSubmit={handleSubmit} className="auth-form">
+                    <div className="form-group">
+                        <label htmlFor="email">Email</label>
                         <input
                             type="email"
                             id="email"
-                            className="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200"
                             placeholder="your@example.com"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
                         />
                     </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-semibold mb-2" htmlFor="password">
-                            Password
-                        </label>
+                    <div className="form-group">
+                        <label htmlFor="password">Password</label>
                         <input
                             type="password"
                             id="password"
-                            className="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-400 transition duration-200"
                             placeholder="********"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
                         />
                     </div>
-                    {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-                    {message && <p className="text-green-600 text-sm text-center">{message}</p>}
-                    <button
-                        type="submit"
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline transition duration-300 transform hover:scale-105 shadow-md"
-                    >
+                    {authError && <p className="auth-error">{authError}</p>}
+                    {message && <p className="auth-message">{message}</p>}
+                    <button type="submit" className="auth-submit-button">
                         {isLogin ? 'Sign In' : 'Sign Up'}
                     </button>
                 </form>
-                <div className="mt-6 text-center">
-                    <button
-                        onClick={() => setIsLogin(!isLogin)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-semibold transition duration-200"
-                    >
+                <div className="auth-switch">
+                    <button onClick={() => setIsLogin(!isLogin)} className="auth-switch-button">
                         {isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
                     </button>
                 </div>
@@ -335,69 +321,44 @@ const EditTaskModal = ({ isOpen, onClose, task, onSave, onSuggestSubtasks }) => 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
-                <h3 className="text-2xl font-bold text-gray-800 mb-4">Edit Task</h3>
-                <div>
-                    <label className="block text-gray-700 text-sm font-semibold mb-2">Task Name:</label>
-                    <input
-                        type="text"
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                </div>
-                <div>
-                    <label className="block text-gray-700 text-sm font-semibold mb-2">Date (YYYY-MM-DD):</label>
-                    <input
-                        type="date"
-                        value={editDate}
-                        onChange={(e) => setEditDate(e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                </div>
-                <div>
-                    <label className="block text-gray-700 text-sm font-semibold mb-2">Time (HH:MM):</label>
-                    <input
-                        type="time"
-                        value={editTime}
-                        onChange={(e) => setEditTime(e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                </div>
-                <div>
-                    <label className="block text-gray-700 text-sm font-semibold mb-2">Frequency:</label>
-                    <select
-                        value={editFrequency}
-                        onChange={(e) => {
-                            setEditFrequency(e.target.value);
-                            if (e.target.value === 'once') {
-                                setEditEndDate('');
-                                setShowEndDatePicker(false);
-                            } else {
-                                setShowEndDatePicker(false);
-                            }
-                        }}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    >
-                        <option value="once">Once</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="yearly">Yearly</option>
-                    </select>
-                </div>
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <h3>Edit Task</h3>
+                <label>Task Name:</label>
+                <input type="text" value={editText} onChange={(e) => setEditText(e.target.value)} />
+                <label>Date (YYYY-MM-DD):</label>
+                <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                <label>Time (HH:MM):</label>
+                <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} />
+                <label>Frequency:</label>
+                <select
+                    value={editFrequency}
+                    onChange={(e) => {
+                        setEditFrequency(e.target.value);
+                        if (e.target.value === 'once') {
+                            setEditEndDate('');
+                            setShowEndDatePicker(false);
+                        } else {
+                            setShowEndDatePicker(false);
+                        }
+                    }}
+                >
+                    <option value="once">Once</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
 
                 {isRecurring && (
-                    <div className="end-date-section mt-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                        <label className="block text-gray-700 text-sm font-semibold mb-2">Ends:</label>
+                    <div className="end-date-section">
+                        <label>Ends:</label>
                         {showEndDatePicker ? (
                             <>
                                 <input
                                     type="date"
                                     value={editEndDate}
                                     onChange={(e) => setEditEndDate(e.target.value)}
-                                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
                                 />
                                 {editEndDate && (
                                     <button
@@ -405,46 +366,28 @@ const EditTaskModal = ({ isOpen, onClose, task, onSave, onSuggestSubtasks }) => 
                                             setEditEndDate('');
                                             setShowEndDatePicker(false);
                                         }}
-                                        className="mt-2 w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                                     >
                                         Clear End Date
                                     </button>
                                 )}
                             </>
                         ) : (
-                            <button
-                                onClick={() => setShowEndDatePicker(true)}
-                                className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200"
-                            >
-                                Set End Date
-                            </button>
+                            <button onClick={() => setShowEndDatePicker(true)}>Set End Date</button>
                         )}
-                        {editEndDate && <p className="mt-2 text-sm text-gray-600">Ends on: {new Date(editEndDate).toLocaleDateString()}</p>}
+                        {editEndDate && <p>Ends on: {new Date(editEndDate).toLocaleDateString()}</p>}
                     </div>
                 )}
 
-                <div className="modal-buttons flex justify-between space-x-3 mt-6">
+                <div className="modal-buttons">
                     <button
                         onClick={() => onSuggestSubtasks(editText)}
-                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-lg transition duration-300 transform hover:scale-105 shadow-md flex items-center justify-center gap-2"
                         disabled={!editText.trim()}
+                        className="suggest-subtasks-button"
                     >
                         ✨ Suggest Sub-tasks
                     </button>
-                    <div className="flex space-x-3">
-                        <button
-                            onClick={handleSave}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition duration-300 transform hover:scale-105 shadow-md"
-                        >
-                            Save
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="bg-gray-400 hover:bg-gray-500 text-gray-800 font-bold py-2 px-5 rounded-lg transition duration-300 transform hover:scale-105 shadow-md"
-                        >
-                            Cancel
-                        </button>
-                    </div>
+                    <button onClick={handleSave}>Save</button>
+                    <button onClick={onClose}>Cancel</button>
                 </div>
             </div>
         </div>
@@ -518,40 +461,38 @@ const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
     const notesArray = Array.isArray(notes) ? notes : [];
 
     return (
-        <div className="notes-container p-6 bg-white rounded-xl shadow-lg">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6">My Notes</h2>
-            <div className="add-note-form mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="notes-container">
+            <h2>My Notes</h2>
+            <div className="add-note-form">
                 <textarea
                     value={newNoteContent}
                     onChange={(e) => setNewNoteContent(e.target.value)}
                     placeholder="Write a new note..."
-                    className="new-note-input flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 resize-y min-h-[80px]"
+                    className="new-note-input"
                 />
-                <button onClick={addNote} className="add-note-button bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 shadow-md">
-                    Add Note
-                </button>
+                <button onClick={addNote} className="add-note-button">Add Note</button>
             </div>
-            <div className="notes-list grid gap-4">
-                {notesArray.length === 0 && <p className="text-center text-gray-500">No notes yet. Add one above!</p>}
+            <div className="notes-list">
+                {notesArray.length === 0 && <p className="no-notes-message">No notes yet. Add one above!</p>}
                 {notesArray.map((note) => (
-                    <div key={note.id} className="note-card bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm">
-                        <div className="note-header flex justify-between items-center mb-3">
+                    <div key={note.id} className="note-card">
+                        <div className="note-header">
                             <button
-                                className="note-title-button text-lg font-semibold text-gray-700 hover:text-purple-600 transition duration-200"
+                                className="note-title-button"
                                 onClick={() => toggleNote(note.id)}
                             >
                                 Note {notesArray.indexOf(note) + 1}
                             </button>
-                            <div className="note-actions flex gap-2">
+                            <div className="note-actions">
                                 <button
                                     onClick={() => onSummarizeNote(note.content)}
-                                    className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold py-1.5 px-3 rounded-lg transition duration-200 flex items-center justify-center gap-1"
                                     disabled={!note.content.trim()}
+                                    className="summarize-note-button"
                                 >
                                     ✨ Summarize
                                 </button>
                                 <button
-                                    className="delete-note-button bg-red-500 hover:bg-red-600 text-white text-sm font-bold py-1.5 px-3 rounded-lg transition duration-200"
+                                    className="delete-note-button"
                                     onClick={() => deleteNote(note.id)}>
                                     Delete
                                 </button>
@@ -561,7 +502,7 @@ const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
                             <textarea
                                 value={note.content}
                                 onChange={(e) => updateNote(note.id, e.target.value)}
-                                className="note-content w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 resize-y min-h-[100px]"
+                                className="note-content"
                             />
                         )}
                     </div>
@@ -572,7 +513,7 @@ const Notes = ({ notes, setNotes, userId, onSummarizeNote }) => {
 };
 
 // --- Main TodoApp Component ---
-export default function TodoApp() {
+function TodoApp() { // Removed 'export default'
     const { currentUser, loadingAuth, signOutUser } = useContext(AuthContext);
     const userId = currentUser?.uid;
 
@@ -1028,8 +969,8 @@ export default function TodoApp() {
 
     if (loadingAuth) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-100">
-                <div className="text-2xl font-semibold text-gray-700">Loading authentication...</div>
+            <div className="loading-screen">
+                <div className="loading-text">Loading authentication...</div>
             </div>
         );
     }
@@ -1041,90 +982,61 @@ export default function TodoApp() {
     return (
         <>
             {isLoading ? (
-                <div className={`loading-screen ${isFadingOut ? 'fade-out' : ''} flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-200 to-purple-200 text-gray-800`}>
-                    <h1 className="loading-text text-5xl font-extrabold text-center mb-8 animate-pulse">"What are you doing today?"</h1>
+                <div className={`loading-screen ${isFadingOut ? 'fade-out' : ''}`}>
+                    <h1 className="loading-text">"What are you doing today?"</h1>
                     {showContinueButton && (
-                        <button className="continue-button bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-110" onClick={handleContinue}>
+                        <button className="continue-button" onClick={handleContinue}>
                             Continue
                         </button>
                     )}
                 </div>
             ) : (
-                <div className="app-container min-h-screen bg-gray-100 flex flex-col lg:flex-row font-inter">
+                <div className="app-container">
                     {/* Side Menu */}
-                    <div className={`fixed inset-y-0 left-0 w-64 bg-gray-800 text-white p-6 transform ${menuOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 flex flex-col shadow-xl`}>
-                        <button className="lg:hidden absolute top-4 right-4 text-white text-2xl" onClick={() => setMenuOpen(false)}>
+                    <div className={`side-menu ${menuOpen ? 'open' : ''}`}>
+                        <button className="menu-toggle" onClick={() => setMenuOpen(false)}>
                             &times;
                         </button>
-                        <h2 className="text-3xl font-bold mb-8 text-center text-blue-300">Menu</h2>
-                        <nav className="flex flex-col space-y-4 flex-grow">
-                            <button
-                                onClick={() => { setView('calendar'); setMenuOpen(false); }}
-                                className="w-full text-left py-3 px-4 rounded-lg hover:bg-gray-700 transition duration-200 flex items-center space-x-3 text-lg font-medium"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                                <span>Calendar View</span>
+                        <h2>Menu</h2>
+                        <nav className="side-menu-nav">
+                            <button onClick={() => { setView('calendar'); setMenuOpen(false); }}>
+                                Calendar View
                             </button>
-                            <button
-                                onClick={() => { setView('files'); setMenuOpen(false); }}
-                                className="w-full text-left py-3 px-4 rounded-lg hover:bg-gray-700 transition duration-200 flex items-center space-x-3 text-lg font-medium"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                </svg>
-                                <span>My Files</span>
+                            <button onClick={() => { setView('files'); setMenuOpen(false); }}>
+                                My Files
                             </button>
-                            <button
-                                onClick={() => { setView('allTasks'); setMenuOpen(false); }}
-                                className="w-full text-left py-3 px-4 rounded-lg hover:bg-gray-700 transition duration-200 flex items-center space-x-3 text-lg font-medium"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                                <span>My Task Gallery</span>
+                            <button onClick={() => { setView('allTasks'); setMenuOpen(false); }}>
+                                My Task Gallery
                             </button>
-                            <button
-                                onClick={() => { setView('notes'); setMenuOpen(false); }}
-                                className="w-full text-left py-3 px-4 rounded-lg hover:bg-gray-700 transition duration-200 flex items-center space-x-3 text-lg font-medium"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span>Notes</span>
+                            <button onClick={() => { setView('notes'); setMenuOpen(false); }}>
+                                Notes
                             </button>
                         </nav>
-                        <div className="mt-auto pt-6 border-t border-gray-700">
-                            <p className="text-sm text-gray-400 mb-2">Logged in as:</p>
-                            <p className="text-sm font-semibold text-blue-200 break-all">{currentUser?.email || currentUser?.uid}</p>
-                            <button
-                                onClick={signOutUser}
-                                className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 transform hover:scale-105 shadow-md"
-                            >
+                        <div className="user-info">
+                            <p>Logged in as:</p>
+                            <p className="user-id">{currentUser?.email || currentUser?.uid}</p>
+                            <button onClick={signOutUser} className="sign-out-button">
                                 Sign Out
                             </button>
                         </div>
                     </div>
 
                     {/* Main Content Area */}
-                    <div className="flex-grow p-6 lg:ml-64 relative">
-                        <button className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-gray-800 text-white rounded-full shadow-lg" onClick={() => setMenuOpen(!menuOpen)}>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
+                    <div className="main-view">
+                        <button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>
+                            ☰
                         </button>
 
                         {view === 'calendar' && (
-                            <div className="bg-white p-6 rounded-xl shadow-lg">
-                                <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
+                            <>
+                                <h2>
                                     The Organizer 📅 - {selectedDate.toLocaleString('default', { month: 'long' })} {year}
                                 </h2>
 
-                                <div className="add-task-form grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                                    <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Task Name" className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                    <input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                    <input type="time" value={taskTime} onChange={(e) => setTaskTime(e.target.value)} className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                                <div className="add-task-form">
+                                    <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Task Name" />
+                                    <input type="date" value={taskDate} onChange={(e) => setTaskDate(e.target.value)} />
+                                    <input type="time" value={taskTime} onChange={(e) => setTaskTime(e.target.value)} />
                                     <select value={frequency} onChange={(e) => {
                                         setFrequency(e.target.value);
                                         if (e.target.value === 'once') {
@@ -1133,7 +1045,7 @@ export default function TodoApp() {
                                         } else {
                                             setShowTaskEndDatePicker(false);
                                         }
-                                    }} className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    }}>
                                         <option value="once">Once</option>
                                         <option value="daily">Daily</option>
                                         <option value="weekly">Weekly</option>
@@ -1142,52 +1054,51 @@ export default function TodoApp() {
                                     </select>
 
                                     {isAddingRecurring && (
-                                        <div className="col-span-full end-date-section mt-2 p-3 border border-gray-200 rounded-lg bg-gray-100">
-                                            <label className="block text-gray-700 text-sm font-semibold mb-2">Ends:</label>
+                                        <div className="end-date-section">
+                                            <label>Ends:</label>
                                             {showTaskEndDatePicker ? (
-                                                <div className="flex flex-col sm:flex-row gap-2 items-center">
+                                                <>
                                                     <input
                                                         type="date"
                                                         value={taskEndDate}
                                                         onChange={(e) => setTaskEndDate(e.target.value)}
-                                                        className="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
                                                     />
                                                     {taskEndDate && (
-                                                        <button onClick={() => { setTaskEndDate(''); setShowTaskEndDatePicker(false); }} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Clear End Date</button>
+                                                        <button onClick={() => { setTaskEndDate(''); setShowTaskEndDatePicker(false); }}>Clear End Date</button>
                                                     )}
-                                                </div>
+                                                </>
                                             ) : (
-                                                <button onClick={() => setShowTaskEndDatePicker(true)} className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Set End Date</button>
+                                                <button onClick={() => setShowTaskEndDatePicker(true)}>Set End Date</button>
                                             )}
-                                            {taskEndDate && <p className="mt-2 text-sm text-gray-600">Ends on: {new Date(taskEndDate).toLocaleDateString()}</p>}
+                                            {taskEndDate && <p>Ends on: {new Date(taskEndDate).toLocaleDateString()}</p>}
                                         </div>
                                     )}
-                                    <button onClick={addTask} className="col-span-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 shadow-md">Add Task</button>
+                                    <button onClick={addTask}>Add Task</button>
                                     <button
                                         onClick={() => handleSuggestSubtasks(input)}
-                                        className="col-span-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 shadow-md flex items-center justify-center gap-2"
                                         disabled={!input.trim()}
+                                        className="suggest-subtasks-button"
                                     >
                                         ✨ Suggest Sub-tasks
                                     </button>
                                 </div>
 
-                                <div className="nav-buttons flex flex-wrap justify-center gap-3 mb-6">
-                                    <button onClick={() => setSelectedDate(new Date())} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Go to Today</button>
-                                    <input type="date" value={gotoInput} onChange={(e) => setGotoInput(e.target.value)} className="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                                    <button onClick={handleGoto} className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Go to Date</button>
-                                    <button onClick={() => changeMonth(-1)} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Prev Month</button>
-                                    <button onClick={() => changeMonth(1)} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Next Month</button>
+                                <div className="nav-buttons">
+                                    <button onClick={() => setSelectedDate(new Date())}>Go to Today</button>
+                                    <input type="date" value={gotoInput} onChange={(e) => setGotoInput(e.target.value)} />
+                                    <button onClick={handleGoto}>Go to Date</button>
+                                    <button onClick={() => changeMonth(-1)}>Prev Month</button>
+                                    <button onClick={() => changeMonth(1)}>Next Month</button>
                                 </div>
 
-                                <div className="calendar-grid grid grid-cols-7 gap-1">
+                                <div className="calendar-grid">
                                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                                        <div key={day} className="text-center font-semibold text-gray-700 py-2 bg-gray-200 rounded-lg">
+                                        <div key={day} className="calendar-header-day">
                                             {day}
                                         </div>
                                     ))}
                                     {calendarDays.map((day, index) => {
-                                        if (!day) return <div key={index} className="calendar-cell empty bg-gray-50 rounded-lg"></div>;
+                                        if (!day) return <div key={index} className="calendar-cell empty"></div>;
 
                                         const formatted = toAESTDateStr(day);
                                         const tasksForDay = tasksByDate[formatted] || [];
@@ -1195,33 +1106,34 @@ export default function TodoApp() {
                                         return (
                                             <div
                                                 key={index}
-                                                className={`calendar-cell p-2 border border-gray-200 rounded-lg relative overflow-hidden h-32 flex flex-col ${formatted === today ? 'bg-blue-100 border-blue-400' : 'bg-white'} ${formatted === toAESTDateStr(selectedDate) ? 'ring-2 ring-blue-500' : ''}`}
+                                                className={`calendar-cell ${formatted === today ? 'today' : ''
+                                                    } ${formatted === toAESTDateStr(selectedDate) ? 'selected' : ''}`}
                                             >
-                                                <strong className="text-lg font-bold text-gray-800 mb-1">{day.getDate()}</strong>
+                                                <strong>{day.getDate()}</strong>
 
-                                                <div className="tasks-list flex-grow overflow-y-auto custom-scrollbar">
+                                                <div className="tasks-list custom-scrollbar">
                                                     {tasksForDay.length > 3 ? (
-                                                        <details className="text-sm">
-                                                            <summary className="cursor-pointer text-blue-600 font-semibold">{tasksForDay.length} tasks</summary>
+                                                        <details className="task-details">
+                                                            <summary className="task-summary">{tasksForDay.length} tasks</summary>
                                                             {tasksForDay.map((task) => (
-                                                                <div key={task.id} className="task-entry bg-blue-50 p-1 rounded-md mb-1 text-xs break-words">
+                                                                <div key={task.id} className="task-entry">
                                                                     {task.text} {task.frequency && `(${task.frequency})`}
                                                                     {task.endDate && ` (Ends: ${new Date(task.endDate).toLocaleDateString()})`}
-                                                                    <div className="flex gap-1 mt-1">
-                                                                        <button onClick={() => openEditModal(task)} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
-                                                                        <button onClick={() => removeTask(task.id)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
+                                                                    <div className="task-actions">
+                                                                        <button onClick={() => openEditModal(task)}>Edit</button>
+                                                                        <button onClick={() => removeTask(task.id)}>Delete</button>
                                                                     </div>
                                                                 </div>
                                                             ))}
                                                         </details>
                                                     ) : (
                                                         tasksForDay.map((task) => (
-                                                            <div key={task.id} className="task-entry bg-blue-50 p-1 rounded-md mb-1 text-xs break-words">
+                                                            <div key={task.id} className="task-entry">
                                                                 {task.text} {task.frequency && `(${task.frequency})`}
                                                                 {task.endDate && ` (Ends: ${new Date(task.endDate).toLocaleDateString()})`}
-                                                                <div className="flex gap-1 mt-1">
-                                                                    <button onClick={() => openEditModal(task)} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
-                                                                    <button onClick={() => removeTask(task.id)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
+                                                                <div className="task-actions">
+                                                                    <button onClick={() => openEditModal(task)}>Edit</button>
+                                                                    <button onClick={() => removeTask(task.id)}>Delete</button>
                                                                 </div>
                                                             </div>
                                                         ))
@@ -1231,80 +1143,66 @@ export default function TodoApp() {
                                         );
                                     })}
                                 </div>
-                            </div>
+                            </>
                         )}
 
                         {view === 'files' && (
-                            <div className="bg-white p-6 rounded-xl shadow-lg">
-                                <h2 className="text-3xl font-bold text-gray-800 mb-6">My Files</h2>
+                            <div>
+                                <h2>My Files</h2>
 
                                 {currentFolder && (
-                                    <button className="back-button mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200 flex items-center gap-2" onClick={() => setCurrentFolder(null)}>
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                                        </svg>
-                                        Back to Root
-                                    </button>
+                                    <button className="back-button" onClick={() => setCurrentFolder(null)}>← Back to Root</button>
                                 )}
 
-                                <div className="add-file-form grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                                <div className="add-file-form">
                                     <input
                                         type="text"
                                         placeholder="New Folder Name"
                                         value={newFolderName}
                                         onChange={(e) => setNewFolderName(e.target.value)}
-                                        className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
                                     />
-                                    <button onClick={handleCreateFolder} className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 shadow-md">
-                                        Create Folder
-                                    </button>
+                                    <button onClick={handleCreateFolder}>Create Folder</button>
 
                                     <input
                                         type="text"
                                         placeholder="File Title (optional)"
                                         value={fileTitle}
                                         onChange={(e) => setFileTitle(e.target.value)}
-                                        className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
                                     />
                                     <input
                                         type="date"
                                         value={fileDate}
                                         onChange={(e) => setFileDate(e.target.value)}
-                                        className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400"
                                     />
-                                    <label className="col-span-full cursor-pointer bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-center transition duration-300 transform hover:scale-105 shadow-md">
+                                    <label className="upload-file-button">
                                         Upload File
-                                        <input type="file" multiple onChange={handleFileUpload} className="hidden" />
+                                        <input type="file" multiple onChange={handleFileUpload} className="hidden-input" />
                                     </label>
                                 </div>
 
-                                <div className="files-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                                    {itemsInCurrentFolder.length === 0 && <p className="col-span-full text-center text-gray-500">No items in this folder. Add some!</p>}
+                                <div className="file-gallery">
+                                    {itemsInCurrentFolder.length === 0 && <p className="no-items-message">No items in this folder. Add some!</p>}
                                     {itemsInCurrentFolder.map((item) => (
-                                        <div key={item.id} className="file-item bg-gray-50 border border-gray-200 rounded-lg p-3 flex flex-col items-center text-center shadow-sm">
+                                        <div key={item.id} className="file-item">
                                             {item.type === 'folder' ? (
-                                                <button onClick={() => setCurrentFolder(item.id)} className="w-full h-24 flex flex-col items-center justify-center text-blue-600 hover:text-blue-800 transition duration-200">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                                    </svg>
-                                                    <span className="text-sm font-semibold truncate w-full">{item.name}</span>
+                                                <button onClick={() => setCurrentFolder(item.id)} className="folder-item">
+                                                    <span className="folder-icon">📁</span>
+                                                    <span className="file-name">{item.name}</span>
                                                 </button>
                                             ) : (
-                                                <a href={item.src} target="_blank" rel="noopener noreferrer" className="w-full h-24 flex flex-col items-center justify-center text-gray-700 hover:text-blue-600 transition duration-200">
+                                                <a href={item.src} target="_blank" rel="noopener noreferrer" className="file-link">
                                                     {item.src && (item.name.toLowerCase().endsWith('.png') || item.name.toLowerCase().endsWith('.jpg') || item.name.toLowerCase().endsWith('.jpeg') || item.name.toLowerCase().endsWith('.gif')) ? (
-                                                        <img src={item.src} alt={item.name} className="max-h-16 max-w-full object-contain mb-2 rounded-md" />
+                                                        <img src={item.src} alt={item.name} className="file-image" />
                                                     ) : (
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                                        </svg>
+                                                        <span className="file-icon">📄</span>
                                                     )}
-                                                    <span className="text-sm font-semibold truncate w-full">{item.name}</span>
+                                                    <span className="file-name">{item.name}</span>
                                                 </a>
                                             )}
-                                            <span className="text-xs text-gray-500 mt-1">{item.date}</span>
-                                            <button onClick={() => removeFile(item.id)} className="mt-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-1 px-2 rounded-md transition duration-200">
-                                                Delete
-                                            </button>
+                                            <div className="file-info">
+                                                <span>{item.date}</span>
+                                                <button onClick={() => removeFile(item.id)}>Delete</button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1312,19 +1210,19 @@ export default function TodoApp() {
                         )}
 
                         {view === 'allTasks' && (
-                            <div className="bg-white p-6 rounded-xl shadow-lg">
-                                <h2 className="text-3xl font-bold text-gray-800 mb-6">My Task Gallery</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {tasks.length === 0 && <p className="col-span-full text-center text-gray-500">No tasks yet. Add some in Calendar View!</p>}
+                            <div>
+                                <h2>My Task Gallery</h2>
+                                <div className="task-gallery">
+                                    {tasks.length === 0 && <p className="no-tasks-message">No tasks yet. Add some in Calendar View!</p>}
                                     {tasks.map((task) => (
-                                        <div key={task.id} className="task-card bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm flex flex-col">
-                                            <p className="text-lg font-semibold text-gray-800 mb-2">{task.text}</p>
-                                            <p className="text-sm text-gray-600">Date: {toAESTDateStr(task.date)} {task.date.includes('T') && new Date(task.date).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
-                                            <p className="text-sm text-gray-600">Frequency: {task.frequency}</p>
-                                            {task.endDate && <p className="text-sm text-gray-600">Ends: {toAESTDateStr(task.endDate)}</p>}
-                                            <div className="flex gap-2 mt-4">
-                                                <button onClick={() => openEditModal(task)} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Edit</button>
-                                                <button onClick={() => removeTask(task.id)} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Delete</button>
+                                        <div key={task.id} className="task-entry-gallery">
+                                            <p className="task-text">{task.text}</p>
+                                            <p className="task-details-gallery">Date: {toAESTDateStr(task.date)} {task.date.includes('T') && new Date(task.date).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
+                                            <p className="task-details-gallery">Frequency: {task.frequency}</p>
+                                            {task.endDate && <p className="task-details-gallery">Ends: {toAESTDateStr(task.endDate)}</p>}
+                                            <div className="task-actions-gallery">
+                                                <button onClick={() => openEditModal(task)}>Edit</button>
+                                                <button onClick={() => removeTask(task.id)}>Delete</button>
                                             </div>
                                         </div>
                                     ))}
