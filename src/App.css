@@ -1,5 +1,5 @@
 /* App.css */
-/* Reset & basic styles */
+/* Reset & basic styles (keep these as they are) */
 * {
    box-sizing: border-box;
    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -36,9 +36,23 @@ body {
 }
 
 
-/* Side Menu */
-.side-menu-custom { /* New class for custom styling */
-   background: #1e1e1e; /* Same as app-container background */
+/* Menu Toggle Button (keep as is) */
+.menu-toggle {
+   display: none;
+   font-size: 1.5rem;
+   padding: 10px;
+   background: none;
+   border: none;
+   color: #eee;
+   cursor: pointer;
+   margin: 10px;
+   z-index: 101;
+}
+
+
+/* Side Menu (keep as is) */
+.side-menu {
+   background: #272727;
    width: 220px;
    padding: 1rem;
    display: flex;
@@ -47,86 +61,66 @@ body {
    overflow-y: auto;
    z-index: 100;
    transition: transform 0.3s ease-in-out;
-   transform: translateX(-100%); /* Start hidden */
-   border-right: 1px solid #333; /* Outline */
-   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.3); /* Keep shadow for mobile */
+   transform: translateX(0);
 }
 
 
-.side-menu-custom.open {
-   transform: translateX(0); /* Open state */
+.side-menu.open {
+   transform: translateX(0);
 }
 
-/* Adjust for desktop to always show menu */
-@media (min-width: 768px) {
-    .side-menu-custom {
-        transform: translateX(0); /* Always open on desktop */
-        position: relative; /* Change from fixed to relative on desktop */
-        border-right: 1px solid #333; /* Ensure border is visible */
-    }
-}
 
 @media (max-width: 768px) {
-   /* Keep side-menu fixed and hidden by default on mobile */
-   .side-menu-custom {
+   .side-menu {
        position: fixed;
        top: 0;
-       left: 0; /* Changed from -220px to 0 for consistency with transform */
+       left: -220px;
        height: 100%;
+       box-shadow: 2px 0 5px rgba(0, 0, 0, 0.3);
    }
 
-   /* Main view adjustment for mobile when menu is closed */
-   .app-container .main-view {
-       padding-left: 1rem; /* Default padding when menu is closed */
+
+   .menu-toggle {
+       display: block;
+       position: fixed;
+       top: 10px;
+       left: 10px;
+   }
+
+
+   .main-view {
+       padding-left: 1rem;
    }
 }
 
 
-/* Styling for "The Organizer" title button */
-.side-menu-custom button.text-2xl {
-    background: transparent;
-    border: none;
-    color: #eee; /* Light color for title */
-    cursor: pointer;
-    font-weight: bold;
-    padding: 0; /* Remove padding from button */
-    text-align: center;
-    margin-bottom: 8px; /* Adjust spacing */
-}
-
-
-/* Side Menu Items - Dark Themed */
-.menu-item-custom {
-   background: #2a2a2a; /* Darker background for items */
+.side-menu button {
+   background: #3a3a3a;
    border: none;
-   color: #eee; /* Light text color */
+   color: #eee;
    padding: 0.7rem 1rem;
    font-size: 1rem;
    border-radius: 5px;
    cursor: pointer;
    transition: background 0.2s ease;
-   text-align: left; /* Align text to left */
+   text-align: center;
    flex: 1;
    min-width: 100%;
-   display: inline-flex; /* Use flex for icon and text alignment */
-   align-items: center;
-   gap: 0.5rem; /* Space between icon and text */
+   display: inline-block;
 }
 
 
-.menu-item-custom:hover {
-   background: #3a3a3a; /* Slightly lighter hover */
+.side-menu button:hover {
+   background: #5a5a5a;
 }
 
 
-/* Month controls */
+/* Month controls (keep as is) */
 .nav-buttons {
    display: flex;
-   flex-wrap: wrap; /* Allow wrapping for smaller screens */
    gap: 0.5rem;
    margin-bottom: 1rem;
    align-items: center;
-   justify-content: center; /* Center buttons */
 }
 
 
@@ -148,7 +142,7 @@ body {
 }
 
 
-/* Main View */
+/* Main View (keep as is) */
 .main-view {
    flex: 1;
    padding: 1rem 2rem;
@@ -165,7 +159,7 @@ body {
 }
 
 
-/* Input area */
+/* Input area (keep as is) */
 .add-task-form {
    display: flex;
    flex-wrap: wrap;
@@ -191,7 +185,7 @@ body {
 
 .add-task-form > button {
    padding: 0.5rem 1rem;
-   background: #007bff; /* Changed to blue */
+   background: #3a86ff;
    color: white;
    border: none;
    border-radius: 5px;
@@ -203,7 +197,7 @@ body {
 
 
 .add-task-form > button:hover {
-   background: #0056b3; /* Darker blue on hover */
+   background: #265ecc;
 }
 
 
@@ -217,6 +211,7 @@ body {
 
 
 .calendar-cell {
+   /* --- REVERTED TO ORIGINAL DARKER BACKGROUND FOR DEFAULT CELLS --- */
    background: #2e2e2e;
    border-radius: 6px;
    padding: 10px;
@@ -234,35 +229,39 @@ body {
 }
 
 
+/* --- LIGHT GRAY FOR EMPTY CELLS --- */
 .calendar-cell.empty {
-   background: #555555;
-   opacity: 0.7;
+   background: #555555; /* A clear, distinct light gray */
+   opacity: 0.7; /* Slightly reduce opacity to differentiate from active day */
    cursor: default;
-   color: transparent;
+   /* Ensure text in empty cells is not visible, if there was any */
+   color: transparent; /* Makes any accidental text invisible */
 }
 
 
+/* --- TODAY and SELECTED highlights remain distinct --- */
 .calendar-cell.today {
-   border-color: #007bff; /* Changed to blue */
-   box-shadow: 0 0 8px #007bffaa; /* Changed to blue */
-   background-color: #3a3a3a;
+   border-color: #3a86ff;
+   box-shadow: 0 0 8px #3a86ffaa;
+   background-color: #3a3a3a; /* Slightly lighter than regular cells, but darker than empty */
 }
 
 
 .calendar-cell.selected {
-   background-color: #3a3a3a;
-   border-color: #007bff; /* Changed to blue */
+   background-color: #3a3a3a; /* Similar to 'today' background for consistency or choose another */
+   border-color: #5a86ff;
 }
 
 
 .calendar-cell strong {
    font-weight: 700;
    margin-bottom: 4px;
+   /* Ensure day numbers are visible in non-empty cells */
    color: #eee;
 }
 
 
-/* Tasks in calendar */
+/* Tasks in calendar (keep as is) */
 .task-entry {
    background: #444;
    margin-bottom: 3px;
@@ -342,13 +341,13 @@ body {
 }
 
 
-/* NEW/MODIFIED STYLES FOR FILE/FOLDER MANAGEMENT */
+/* --- NEW/MODIFIED STYLES FOR FILE/FOLDER MANAGEMENT --- */
 
 
 /* Styles for the "Back to Root" button in the files view */
 .back-button {
    padding: 0.5rem 1rem;
-   background: #007bff; /* Changed to blue */
+   background: #555;
    color: white;
    border: none;
    border-radius: 5px;
@@ -360,11 +359,11 @@ body {
 
 
 .back-button:hover {
-   background: #0056b3; /* Darker blue on hover */
+   background: #777;
 }
 
 
-/* Add File/Folder Form */
+/* Add File/Folder Form - Renamed from .add-image-form */
 .add-file-form {
    display: flex;
    flex-wrap: wrap;
@@ -390,7 +389,7 @@ body {
 /* Add button style for "Create Folder" and file upload buttons */
 .add-file-form button {
    padding: 0.5rem 1rem;
-   background: #007bff; /* Changed to blue */
+   background: #3a86ff;
    color: white;
    border: none;
    border-radius: 5px;
@@ -402,13 +401,13 @@ body {
 
 
 .add-file-form button:hover {
-   background: #0056b3; /* Darker blue on hover */
+   background: #265ecc;
 }
 
 
 
 
-/* File Gallery */
+/* File Gallery - Renamed from .image-gallery */
 .file-gallery {
    display: grid;
    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -416,7 +415,7 @@ body {
 }
 
 
-/* File Item */
+/* File Item - Renamed from .image-item */
 .file-item {
    background: #2e2e2e;
    border-radius: 6px;
@@ -424,11 +423,11 @@ body {
    display: flex;
    flex-direction: column;
    align-items: center;
-   text-align: center;
+   text-align: center; /* Center content within file/folder items */
 }
 
 
-.file-item img {
+.file-item img { /* Keep for images within file items */
    max-width: 100%;
    height: auto;
    border-radius: 6px;
@@ -440,32 +439,32 @@ body {
 
 /* Folder Icon Styling */
 .folder-icon {
-   font-size: 2rem;
+   font-size: 2rem; /* Make folder icon larger */
    cursor: pointer;
    margin-bottom: 0.5rem;
-   color: #007bff; /* Changed to blue */
+   color: #006cb4; /* Gold color for folders */
 }
 
 
 /* Generic File Icon Styling */
-.file-icon {
+.file-icon { /* Style for generic file icon */
    font-size: 3rem;
    margin-bottom: 0.5rem;
-   color: #007bff; /* Changed to blue */
+   color: #add8e6; /* Light blue for files */
 }
 
 
-/* File Info */
+/* File Info - Renamed from .image-info */
 .file-info {
    text-align: center;
    font-size: 0.8rem;
-   width: 100%;
+   width: 100%; /* Ensure info takes full width */
 }
 
 
 .file-info button,
-.file-info .download-button {
-   background: #d32f2f; /* Red for delete - kept red */
+.file-info .download-button { /* Style for download/delete buttons/links */
+   background: #d32f2f; /* Red for delete */
    color: white;
    border: none;
    border-radius: 4px;
@@ -474,8 +473,8 @@ body {
    font-size: 0.7rem;
    transition: background 0.2s ease;
    margin-top: 0.5rem;
-   text-decoration: none;
-   display: inline-block;
+   text-decoration: none; /* Remove underline from links */
+   display: inline-block; /* Allow spacing between buttons/links */
    margin: 0.25rem;
 }
 
@@ -485,17 +484,17 @@ body {
 }
 
 
-.file-info .download-button {
-   background: #007bff; /* Changed to blue */
+.file-info .download-button { /* Specific style for download button */
+   background: #3a86ff; /* Blue for download */
 }
 
 
 .file-info .download-button:hover {
-   background: #0056b3; /* Darker blue on hover */
+   background: #265ecc;
 }
 
 
-/* All Tasks View */
+/* All Tasks View (keep as is) */
 .task-gallery {
    margin-top: 1rem;
 }
@@ -524,7 +523,7 @@ body {
 
 
 .task-gallery .task-entry .task-actions button {
-   background: #007bff; /* Changed to blue */
+   background: #555;
    color: #eee;
    border: none;
    padding: 0.4rem 0.7rem;
@@ -536,11 +535,11 @@ body {
 
 
 .task-gallery .task-entry .task-actions button:hover {
-   background: #0056b3; /* Darker blue on hover */
+   background: #777;
 }
 
 
-/* Edit Task Modal */
+/* Edit Task Modal (keep as is) */
 .modal-overlay {
    position: fixed;
    top: 0;
@@ -602,9 +601,7 @@ body {
 }
 
 
-.modal-buttons button:first-child {
-   background-color: #007bff; /* Changed to blue */
-   color: white;
+.modal-buttons button {
    padding: 0.7rem 1rem;
    border: none;
    border-radius: 5px;
@@ -615,21 +612,20 @@ body {
 }
 
 
+.modal-buttons button:first-child {
+   background-color: #3a86ff;
+   color: white;
+}
+
+
 .modal-buttons button:first-child:hover {
-   background-color: #0056b3; /* Darker blue on hover */
+   background-color: #265ecc;
 }
 
 
 .modal-buttons button:last-child {
    background-color: #555;
    color: #eee;
-   padding: 0.7rem 1rem;
-   border: none;
-   border-radius: 5px;
-   cursor: pointer;
-   font-size: 1rem;
-   font-weight: bold;
-   transition: background 0.2s ease;
 }
 
 
@@ -642,11 +638,11 @@ button:focus,
 input:focus,
 select:focus {
    outline: none;
-   box-shadow: 0 0 3px 2px #007bffcc; /* Changed to blue */
+   box-shadow: 0 0 3px 2px #3a86ffcc;
 }
 
 
-/* Notes View */
+/* Notes View (keep as is) */
 .notes-container {
    padding: 1rem;
 }
@@ -675,7 +671,7 @@ select:focus {
 
 .add-note-button {
    padding: 0.7rem 1rem;
-   background: #007bff; /* Changed to blue */
+   background: #3a86ff;
    color: white;
    border: none;
    border-radius: 5px;
@@ -687,7 +683,7 @@ select:focus {
 
 
 .add-note-button:hover {
-   background: #0056b3; /* Darker blue on hover */
+   background: #265ecc;
 }
 
 
@@ -739,7 +735,7 @@ select:focus {
 
 
 .delete-note-button {
-   background: #d32f2f; /* Kept red for delete */
+   background: #d32f2f;
    color: white;
    border: none;
    border-radius: 4px;
@@ -768,7 +764,7 @@ select:focus {
 }
 
 
-/* End Date Section (for both Add Task and Edit Modal) */
+/* End Date Section (for both Add Task and Edit Modal) (keep as is) */
 .end-date-section {
    display: flex;
    flex-wrap: wrap;
@@ -797,7 +793,7 @@ select:focus {
    font-size: 1rem;
    cursor: pointer;
    transition: background 0.2s ease;
-   background: #555; /* Default for clear button */
+   background: #555;
    color: #eee;
 }
 
@@ -808,13 +804,13 @@ select:focus {
 
 
 .end-date-section button:first-of-type {
-   background: #007bff; /* Changed to blue */
+   background: #3a86ff;
    color: white;
 }
 
 
 .end-date-section button:first-of-type:hover {
-   background: #0056b3; /* Darker blue on hover */
+   background: #265ecc;
 }
 
 
@@ -839,7 +835,7 @@ select:focus {
 }
 
 
-/* Loading Screen Styles */
+/* Loading Screen Styles (keep as is) */
 .loading-screen {
    display: flex;
    flex-direction: column;
@@ -872,7 +868,7 @@ select:focus {
 
 .continue-button {
    padding: 0.7rem 1rem;
-   background-color: #007bff; /* Changed to blue */
+   background-color: #3a86ff;
    color: white;
    border: none;
    border-radius: 5px;
@@ -884,7 +880,7 @@ select:focus {
 
 
 .continue-button:hover {
-   background-color: #0056b3; /* Darker blue on hover */
+   background-color: #265ecc;
    transform: translateY(-2px);
 }
 
@@ -899,3 +895,8 @@ select:focus {
        opacity: 0.9;
    }
 }
+
+
+
+
+
