@@ -821,7 +821,7 @@ export default function TodoApp() {
                 <div className="app-container">
                     {/* Top bar for user info and logout button */}
                     <div className="top-bar">
-                        {user && <span className="user-info">Logged in as: {user.userId}</span>}
+                        {/* Removed "Logged in as: {user.userId}" text as per request */}
                         <button className="logout-button" onClick={handleLogout}>Logout</button>
                     </div>
 
